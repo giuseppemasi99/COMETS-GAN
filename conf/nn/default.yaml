@@ -1,47 +1,74 @@
 data:
   _target_: thesis_gan.data.datamodule.MyDataModule
 
+  data_pipeline:
+    _target_: thesis_gan.data.pipeline.LogReturnPipeline
+    scaler:
+      _target_: sklearn.preprocessing.StandardScaler
+
   datasets:
     train:
-      _target_: thesis_gan.data.dataset.MyDataset
+      _target_: thesis_gan.data.dataset.StockDataset
+      path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_SP500_train.csv
+      targets: [mid_price_KO, mid_price_PEP]
+      encoder_length: 390
+      decoder_length: 150
+      stride: 1
 
-#    val:
-#      - _target_: thesis_gan.data.dataset.MyDataset
+
+    val:
+      - _target_: thesis_gan.data.dataset.StockDataset
+        path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_SP500_val.csv
+        targets: [mid_price_KO, mid_price_PEP]
+        encoder_length: 390
+        decoder_length: 150
+        stride: 1
 
     test:
-      - _target_: thesis_gan.data.dataset.MyDataset
+      - _target_: thesis_gan.data.dataset.StockDataset
+        path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_SP500_test.csv
+        targets: [mid_price_KO, mid_price_PEP]
+        encoder_length: 390
+        decoder_length: 150
+        stride: 1
 
   gpus: ${train.trainer.gpus}
 
   num_workers:
-    train: 8
-    val: 4
-    test: 4
+    train: 12
+    val: 12
+    test: 12
 
   batch_size:
-    train: 32
-    val: 16
-    test: 16
-
-  # example
-  val_percentage: 0.1
+    train: 128
+    val: 128
+    test: 128
 
 module:
   _target_: thesis_gan.pl_modules.pl_module.MyLightningModule
 
-  optimizer:
-    #  Adam-oriented deep learning
-    _target_: torch.optim.Adam
-    #  These are all default parameters for the Adam optimizer
-    lr: 0.001
-    betas: [ 0.9, 0.999 ]
-    eps: 1e-08
-    weight_decay: 0
+  optimizer_g:
+    _target_: torch.optim.RMSprop
+    lr: 1e-4
 
-  lr_scheduler:
-    _target_: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts
-    T_0: 10
-    T_mult: 2
-    eta_min: 0 # min value for the lr
-    last_epoch: -1
-    verbose: False
+  optimizer_d:
+    _target_: torch.optim.RMSprop
+    lr: 3e-4
+
+  stock_names: [KO, PEP]
+  encoder_length: 390
+  decoder_length: 150
+  n_features: 2
+  gen_hidden_dim: 256
+  disc_hidden_dim: 256
+  n_critic: 5
+  dropout: 0.2
+  val_log_freq: 5
+
+#  lr_scheduler:
+#    _target_: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts
+#    T_0: 10
+#    T_mult: 2
+#    eta_min: 0 # min value for the lr
+#    last_epoch: -1
+#    verbose: False
