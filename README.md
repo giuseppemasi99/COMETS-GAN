@@ -28,7 +28,7 @@ pip install git+ssh://git@github.com/mikcnt/thesis-gan.git
 Setup the development environment:
 
 ```bash
-git clone git+ssh://git@grok-ai/mikcnt/thesis-gan.git
+git clone git+ssh://git@github/mikcnt/thesis-gan.git
 conda env create -f env.yaml
 conda activate thesis-gan
 pre-commit install
