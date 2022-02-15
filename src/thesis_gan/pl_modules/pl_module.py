@@ -262,7 +262,7 @@ class MyLightningModule(pl.LightningModule):
 
         fig.legend(handles=legend_elements, loc="upper right", ncol=1)
         fig.tight_layout()
-        title = f"{batch_idx}"
+        title = f"Epoch {self.current_epoch} ({batch_idx})"
         self.logger.experiment.log({title: wandb.Image(fig)})
 
         plt.close(fig)
