@@ -9,7 +9,7 @@ data:
   datasets:
     train:
       _target_: thesis_gan.data.dataset.StockDataset
-      path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_SP500_train.csv
+      path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_train.csv
       targets: [mid_price_KO, mid_price_PEP]
       encoder_length: 390
       decoder_length: 150
@@ -18,7 +18,7 @@ data:
 
     val:
       - _target_: thesis_gan.data.dataset.StockDataset
-        path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_SP500_val.csv
+        path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_val.csv
         targets: [mid_price_KO, mid_price_PEP]
         encoder_length: 390
         decoder_length: 150
@@ -26,7 +26,7 @@ data:
 
     test:
       - _target_: thesis_gan.data.dataset.StockDataset
-        path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_SP500_test.csv
+        path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_test.csv
         targets: [mid_price_KO, mid_price_PEP]
         encoder_length: 390
         decoder_length: 150
@@ -63,6 +63,7 @@ module:
   disc_hidden_dim: 256
   n_critic: 5
   dropout: 0.2
+  compute_corr: True
   val_log_freq: 5
 
 #  lr_scheduler:

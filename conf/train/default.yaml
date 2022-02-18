@@ -1,5 +1,5 @@
 # reproducibility
-seed_index: 0
+seed_index: 42
 deterministic: False
 
 # PyTorch Lightning Trainer https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html
@@ -7,7 +7,7 @@ trainer:
   fast_dev_run: False # Enable this for debug purposes
   gpus: 1
   precision: 32
-  max_epochs: 100
+  max_epochs: 150
 #  max_steps: 10000
   accumulate_grad_batches: 1
   num_sanity_val_steps: 2
@@ -17,7 +17,7 @@ trainer:
 
 restore:
   ckpt_or_run_path: null
-  mode: continue # null, finetune, hotstart, continue
+  mode: null # null, finetune, hotstart, continue
 
 monitor:
   metric: 'loss/disc'
