@@ -5,6 +5,18 @@ import torch.nn as nn
 from torch.nn.utils.parametrizations import spectral_norm
 
 
+def corr(x_batch: torch.Tensor) -> torch.Tensor:
+    n_features = x_batch.shape[1]
+    indices = torch.triu_indices(n_features, n_features, 1)
+
+    correlations = []
+    for x in x_batch:
+        correlation = torch.corrcoef(x)
+        correlation = correlation[indices[0], indices[1]]
+        correlations.append(correlation)
+    return torch.stack(correlations)
+
+
 def linear_block(in_features: int, out_features: int, dropout: float, normalization: bool = True) -> nn.Module:
     if normalization:
         return nn.Sequential(
@@ -75,10 +87,12 @@ class ConditionalDiscriminator(nn.Module):
         n_features: int,
         dropout: float,
         hidden_dim: int,
+        compute_corr: bool,
     ) -> None:
         super(ConditionalDiscriminator, self).__init__()
+        self.compute_corr = compute_corr
+        self.n_features = n_features
 
-        self.flatten = nn.Flatten()
         self.convblock1 = nn.Sequential(conv_block(n_features, 16, dropout), nn.MaxPool1d(2))
         self.convblock2 = nn.Sequential(conv_block(16, 16, dropout), nn.MaxPool1d(2))
         self.convblock3 = conv_block(16, 16, dropout)
@@ -86,6 +100,10 @@ class ConditionalDiscriminator(nn.Module):
         self.linear2 = linear_block(hidden_dim * 4, hidden_dim * 2, dropout)
         self.linear3 = linear_block(hidden_dim * 2, hidden_dim * 1, dropout)
         self.linear_out = spectral_norm(nn.Linear(hidden_dim, 1), n_power_iterations=10)
+
+        if compute_corr and n_features > 1:
+            corr_features = n_features * n_features // 2 - (n_features // 2)
+            self.linear_corr = nn.Linear(corr_features, 1)
 
     def forward(self, batch: Dict[str, torch.Tensor], y_continuation: torch.Tensor) -> torch.Tensor:
         x = batch["x"]
@@ -100,4 +118,9 @@ class ConditionalDiscriminator(nn.Module):
         o = self.linear3(o)
 
         output = self.linear_out(o)
+
+        if self.n_features > 1 and self.compute_corr:
+            correlations = corr(y_continuation)
+            output += self.linear_corr(correlations)
+
         return output

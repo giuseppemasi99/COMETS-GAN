@@ -62,6 +62,7 @@ class MyLightningModule(pl.LightningModule):
             self.hparams.n_features,
             self.hparams.dropout,
             self.hparams.disc_hidden_dim,
+            self.hparams.compute_corr,
         )
 
         self.pipeline = metadata.data_pipeline
