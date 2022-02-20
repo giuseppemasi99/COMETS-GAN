@@ -103,7 +103,7 @@ class MyLightningModule(pl.LightningModule):
             return d_loss
 
     def validation_step(self, batch: Any, batch_idx: int) -> None:
-        if batch_idx % self.hparams.val_log_freq:
+        if batch_idx % self.hparams.val_log_freq == 0:
             x = batch["x"]
             y = batch["y"]
             x_prices = batch["x_prices"]
