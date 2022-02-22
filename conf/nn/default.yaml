@@ -9,7 +9,7 @@ data:
   datasets:
     train:
       _target_: thesis_gan.data.dataset.StockDataset
-      path: ${oc.env:TRAIN_DATASET_PATH}
+      path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_train.csv
       targets: [mid_price_KO, mid_price_PEP, mid_price_NVDA, mid_price_KSU]
       encoder_length: 390
       decoder_length: 150
@@ -18,7 +18,7 @@ data:
 
     val:
       - _target_: thesis_gan.data.dataset.StockDataset
-        path: ${oc.env:VAL_DATASET_PATH}
+        path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_val.csv
 
         targets: [mid_price_KO, mid_price_PEP, mid_price_NVDA, mid_price_KSU]
         encoder_length: 390
@@ -27,7 +27,7 @@ data:
 
     test:
       - _target_: thesis_gan.data.dataset.StockDataset
-        path: ${oc.env:TEST_DATASET_PATH}
+        path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_test.csv
         targets: [mid_price_KO, mid_price_PEP, mid_price_NVDA, mid_price_KSU]
         encoder_length: 390
         decoder_length: 150
