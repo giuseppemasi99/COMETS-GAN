@@ -1,3 +1,4 @@
+from math import factorial
 from typing import Dict, List
 
 import torch
@@ -68,16 +69,15 @@ class TemporalBlock(nn.Module):
         return self.relu(out + res)
 
 
-class TemporalConvNet(nn.Module):
+class NoisyTemporalConvNet(nn.Module):
     def __init__(
         self,
         num_inputs: int,
         num_channels: List[int],
         kernel_size: int = 2,
         dropout: float = 0.2,
-        use_norm: bool = True,
     ) -> None:
-        super(TemporalConvNet, self).__init__()
+        super(NoisyTemporalConvNet, self).__init__()
         layers = []
         num_levels = len(num_channels)
         for i in range(num_levels):
@@ -93,7 +93,7 @@ class TemporalConvNet(nn.Module):
                     dilation=dilation_size,
                     padding=(kernel_size - 1) * dilation_size,
                     dropout=dropout,
-                    use_norm=use_norm,
+                    use_norm=False,
                 )
             ]
 
@@ -159,7 +159,7 @@ class ConditionalGenerator(nn.Module):
     ) -> None:
         super(ConditionalGenerator, self).__init__()
 
-        self.tcn = TemporalConvNet(n_features + 1, [32, 64, 128, 64, 32, 16, 2], dropout=dropout, use_norm=False)
+        self.tcn = NoisyTemporalConvNet(n_features + 1, [32, 64, 128, 64, 32, 16, n_features], dropout=dropout)
         self.linear_out = nn.Linear(encoder_length, decoder_length)
 
     def forward(self, batch: Dict[str, torch.Tensor], noise: torch.Tensor):
@@ -191,8 +191,8 @@ class ConditionalDiscriminator(nn.Module):
         self.linear_out = spectral_norm(nn.Linear(hidden_dim, 1), n_power_iterations=10)
 
         if compute_corr and n_features > 1:
-            corr_features = n_features * n_features // 2 - (n_features // 2)
-            self.linear_corr = nn.Linear(corr_features, 1)
+            corr_features = factorial(n_features) // (2 * factorial(n_features - 2))
+            self.linear_corr = spectral_norm(nn.Linear(corr_features, 1), n_power_iterations=10)
 
     def forward(self, batch: Dict[str, torch.Tensor], y_continuation: torch.Tensor) -> torch.Tensor:
         x = batch["x"]
