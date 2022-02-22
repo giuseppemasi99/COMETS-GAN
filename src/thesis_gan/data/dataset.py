@@ -9,14 +9,16 @@ from torch.utils.data import Dataset
 
 from nn_core.common import PROJECT_ROOT
 from nn_core.nn_types import Split
-from src.thesis_gan.data.pipeline import Pipeline
+
+from thesis_gan.data.pipeline import Pipeline
 
 
 class StockDataset(Dataset):
     def __init__(
         self,
         path: Path,
-        targets: List[str],
+        target_feature: str,
+        stock_names: List[str],
         encoder_length: int,
         decoder_length: int,
         stride: int,
@@ -30,6 +32,8 @@ class StockDataset(Dataset):
         self.stride = stride
         self.data_pipeline = data_pipeline
         self.split = split
+
+        targets = [f"{target_feature}_{stock}" for stock in stock_names]
 
         # Preprocess dataset targets
         self.data = data_pipeline.preprocess(self.df, targets)

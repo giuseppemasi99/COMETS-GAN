@@ -10,7 +10,8 @@ from omegaconf import DictConfig
 from torch.utils.data import DataLoader, Dataset
 
 from nn_core.common import PROJECT_ROOT
-from src.thesis_gan.data.pipeline import Pipeline
+
+from thesis_gan.data.pipeline import Pipeline
 
 pylogger = logging.getLogger(__name__)
 

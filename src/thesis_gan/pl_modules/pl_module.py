@@ -16,8 +16,9 @@ from torch.optim import Optimizer
 
 from nn_core.common import PROJECT_ROOT
 from nn_core.model_logging import NNLogger
-from src.thesis_gan.data.datamodule import MetaData
-from src.thesis_gan.modules.module import ConditionalDiscriminator, ConditionalGenerator, corr
+
+from thesis_gan.data.datamodule import MetaData
+from thesis_gan.modules.module import ConditionalDiscriminator, ConditionalGenerator, corr
 
 pylogger = logging.getLogger(__name__)
 
@@ -48,6 +49,7 @@ class MyLightningModule(pl.LightningModule):
         # populate self.hparams with args and kwargs automagically!
         # We want to skip metadata since it is saved separately by the
         self.save_hyperparameters(logger=False, ignore=("metadata",))
+        self.hparams.n_features = len(self.hparams.stock_names)
 
         self.metadata = metadata
 
