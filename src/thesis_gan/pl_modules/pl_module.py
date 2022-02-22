@@ -1,4 +1,5 @@
 import logging
+from itertools import combinations
 from typing import Any, Dict, Optional, Tuple
 
 import hydra
@@ -10,12 +11,13 @@ import torch
 import wandb
 from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
+from torch import nn
 from torch.optim import Optimizer
 
 from nn_core.common import PROJECT_ROOT
 from nn_core.model_logging import NNLogger
 from src.thesis_gan.data.datamodule import MetaData
-from src.thesis_gan.modules.module import ConditionalDiscriminator, ConditionalGenerator
+from src.thesis_gan.modules.module import ConditionalDiscriminator, ConditionalGenerator, corr
 
 pylogger = logging.getLogger(__name__)
 
@@ -67,6 +69,8 @@ class MyLightningModule(pl.LightningModule):
 
         self.pipeline = metadata.data_pipeline
 
+        self.mse = nn.MSELoss(reduction="none")
+
     def forward(self, x: torch.Tensor, noise: torch.Tensor) -> torch.Tensor:
         """Method for the forward pass.
 
@@ -90,6 +94,7 @@ class MyLightningModule(pl.LightningModule):
             y_pred = self(batch, noise)
             g_loss = -torch.mean(self.discriminator(batch, y_pred))
             self.log_dict({"loss/gen": g_loss}, on_step=True, on_epoch=True, prog_bar=True)
+            self.log_correlation_distance(y_real, y_pred)
             return g_loss
 
         # Train discriminator
@@ -103,7 +108,7 @@ class MyLightningModule(pl.LightningModule):
             return d_loss
 
     def validation_step(self, batch: Any, batch_idx: int) -> None:
-        if batch_idx % self.hparams.val_log_freq:
+        if batch_idx % self.hparams.val_log_freq == 0:
             x = batch["x"]
             y = batch["y"]
             x_prices = batch["x_prices"]
@@ -148,6 +153,19 @@ class MyLightningModule(pl.LightningModule):
         #     return [opt]
         # scheduler = hydra.utils.instantiate(self.hparams.lr_scheduler, optimizer=opt)
         # return [opt], [scheduler]
+
+    def log_correlation_distance(self, y_real: torch.Tensor, y_pred: torch.Tensor) -> None:
+        corr_real = corr(y_real)
+        corr_pred = corr(y_pred)
+
+        metric_names = [f"corr_dist/{'-'.join(x)}" for x in combinations(self.hparams.stock_names, 2)]
+        corr_distances = self.mse(corr_real, corr_pred).mean(dim=0)
+        self.log_dict(
+            {metric: corr_dist.item() for metric, corr_dist in zip(metric_names, corr_distances)},
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
+        )
 
     def log_predictions(
         self,

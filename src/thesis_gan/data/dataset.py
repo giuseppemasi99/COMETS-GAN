@@ -9,8 +9,7 @@ from torch.utils.data import Dataset
 
 from nn_core.common import PROJECT_ROOT
 from nn_core.nn_types import Split
-
-from thesis_gan.data.pipeline import Pipeline
+from src.thesis_gan.data.pipeline import Pipeline
 
 
 class StockDataset(Dataset):

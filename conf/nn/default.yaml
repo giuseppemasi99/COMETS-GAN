@@ -9,8 +9,8 @@ data:
   datasets:
     train:
       _target_: thesis_gan.data.dataset.StockDataset
-      path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_train.csv
-      targets: [mid_price_KO, mid_price_PEP]
+      path: ${oc.env:TRAIN_DATASET_PATH}
+      targets: [mid_price_KO, mid_price_PEP, mid_price_NVDA, mid_price_KSU]
       encoder_length: 390
       decoder_length: 150
       stride: 1
@@ -18,16 +18,17 @@ data:
 
     val:
       - _target_: thesis_gan.data.dataset.StockDataset
-        path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_val.csv
-        targets: [mid_price_KO, mid_price_PEP]
+        path: ${oc.env:VAL_DATASET_PATH}
+
+        targets: [mid_price_KO, mid_price_PEP, mid_price_NVDA, mid_price_KSU]
         encoder_length: 390
         decoder_length: 150
         stride: 1
 
     test:
       - _target_: thesis_gan.data.dataset.StockDataset
-        path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_test.csv
-        targets: [mid_price_KO, mid_price_PEP]
+        path: ${oc.env:TEST_DATASET_PATH}
+        targets: [mid_price_KO, mid_price_PEP, mid_price_NVDA, mid_price_KSU]
         encoder_length: 390
         decoder_length: 150
         stride: 1
@@ -55,10 +56,10 @@ module:
     _target_: torch.optim.RMSprop
     lr: 3e-4
 
-  stock_names: [KO, PEP]
+  stock_names: [KO, PEP, NVDA, KSU]
   encoder_length: 390
   decoder_length: 150
-  n_features: 2
+  n_features: 4
   gen_hidden_dim: 256
   disc_hidden_dim: 256
   n_critic: 5
