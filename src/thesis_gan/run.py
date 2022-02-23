@@ -1,6 +1,7 @@
 import logging
 from typing import Dict, List
 
+import dotenv
 import hydra
 import omegaconf
 import pytorch_lightning as pl
@@ -48,6 +49,7 @@ def run(cfg: DictConfig) -> str:
         the run directory inside the storage_dir used by the current experiment
     """
     seed_index_everything(cfg.train)
+    dotenv.load_dotenv()
 
     fast_dev_run: bool = cfg.train.trainer.fast_dev_run
     if fast_dev_run:
@@ -77,7 +79,6 @@ def run(cfg: DictConfig) -> str:
     callbacks: List[Callback] = build_callbacks(cfg.train.callbacks, template_core)
 
     storage_dir: str = cfg.core.storage_dir
-
     logger: NNLogger = NNLogger(logging_cfg=cfg.train.logging, cfg=cfg, resume_id=template_core.resume_id)
 
     pylogger.info("Instantiating the <Trainer>")

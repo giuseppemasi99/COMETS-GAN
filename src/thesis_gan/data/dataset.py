@@ -17,7 +17,8 @@ class StockDataset(Dataset):
     def __init__(
         self,
         path: Path,
-        targets: List[str],
+        target_feature: str,
+        stock_names: List[str],
         encoder_length: int,
         decoder_length: int,
         stride: int,
@@ -31,6 +32,8 @@ class StockDataset(Dataset):
         self.stride = stride
         self.data_pipeline = data_pipeline
         self.split = split
+
+        targets = [f"{target_feature}_{stock}" for stock in stock_names]
 
         # Preprocess dataset targets
         self.data = data_pipeline.preprocess(self.df, targets)

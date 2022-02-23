@@ -1,8 +1,109 @@
-from typing import Dict
+from math import factorial
+from typing import Dict, List
 
 import torch
 import torch.nn as nn
 from torch.nn.utils.parametrizations import spectral_norm
+
+
+class Chomp1d(nn.Module):
+    def __init__(self, chomp_size: int) -> None:
+        super(Chomp1d, self).__init__()
+        self.chomp_size = chomp_size
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x[:, :, : -self.chomp_size].contiguous()
+
+
+class TemporalBlock(nn.Module):
+    def __init__(
+        self,
+        n_inputs: int,
+        n_outputs: int,
+        kernel_size: int,
+        stride: int,
+        dilation: int,
+        padding: int,
+        dropout: float = 0.2,
+        use_norm: bool = True,
+    ) -> None:
+        super(TemporalBlock, self).__init__()
+        self.conv1 = nn.Conv1d(
+            n_inputs, n_outputs, (kernel_size,), stride=(stride,), padding=padding, dilation=(dilation,)
+        )
+        if use_norm:
+            self.conv1 = spectral_norm(self.conv1, n_power_iterations=10)
+        self.chomp1 = Chomp1d(padding)
+        self.relu1 = nn.LeakyReLU(0.2)
+        self.dropout1 = nn.Dropout(dropout)
+
+        self.conv2 = nn.Conv1d(
+            n_outputs, n_outputs, (kernel_size,), stride=(stride,), padding=padding, dilation=(dilation,)
+        )
+        if use_norm:
+            self.conv2 = spectral_norm(self.conv2, n_power_iterations=10)
+
+        self.chomp2 = Chomp1d(padding)
+        self.relu2 = nn.LeakyReLU(0.2)
+        self.dropout2 = nn.Dropout(dropout)
+
+        self.net = nn.Sequential(
+            self.conv1, self.chomp1, self.relu1, self.dropout1, self.conv2, self.chomp2, self.relu2, self.dropout2
+        )
+        self.downsample = nn.Conv1d(n_inputs, n_outputs, (1,)) if n_inputs != n_outputs else None
+        if n_inputs != n_outputs and use_norm:
+            self.downsample = spectral_norm(self.downsample, n_power_iterations=10)
+
+        self.relu = nn.LeakyReLU(0.2)
+        self.init_weights()
+
+    def init_weights(self) -> None:
+        self.conv1.weight.data.normal_(0, 0.01)
+        self.conv2.weight.data.normal_(0, 0.01)
+        if self.downsample is not None:
+            self.downsample.weight.data.normal_(0, 0.01)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        out = self.net(x)
+        res = x if self.downsample is None else self.downsample(x)
+        return self.relu(out + res)
+
+
+class NoisyTemporalConvNet(nn.Module):
+    def __init__(
+        self,
+        num_inputs: int,
+        num_channels: List[int],
+        kernel_size: int = 2,
+        dropout: float = 0.2,
+    ) -> None:
+        super(NoisyTemporalConvNet, self).__init__()
+        layers = []
+        num_levels = len(num_channels)
+        for i in range(num_levels):
+            dilation_size = 2**i
+            in_channels = num_inputs if i == 0 else num_channels[i - 1] + 1
+            out_channels = num_channels[i]
+            layers += [
+                TemporalBlock(
+                    in_channels,
+                    out_channels,
+                    kernel_size,
+                    stride=1,
+                    dilation=dilation_size,
+                    padding=(kernel_size - 1) * dilation_size,
+                    dropout=dropout,
+                    use_norm=False,
+                )
+            ]
+
+        self.network = nn.ModuleList(layers)
+
+    def forward(self, x: torch.Tensor, noise: torch.Tensor) -> torch.Tensor:
+        for layer in self.network:
+            x = torch.cat((x, noise), dim=1)
+            x = layer(x)
+        return x
 
 
 def corr(x_batch: torch.Tensor) -> torch.Tensor:
@@ -58,25 +159,13 @@ class ConditionalGenerator(nn.Module):
     ) -> None:
         super(ConditionalGenerator, self).__init__()
 
-        self.linearblock1 = linear_block(encoder_length, hidden_dim * 4, dropout, normalization=False)
-        self.convblock1 = conv_block(n_features + 1, 16, dropout, normalization=False)
-        self.convblock2 = conv_block(16, 16, dropout, normalization=False)
-        self.convblock3 = conv_block(16, n_features, dropout, normalization=False)
+        self.tcn = NoisyTemporalConvNet(n_features + 1, [32, 64, 128, 64, 32, 16, n_features], dropout=dropout)
+        self.linear_out = nn.Linear(encoder_length, decoder_length)
 
-        self.linear_out = nn.Linear(hidden_dim * 4, decoder_length)
-
-    def forward(self, batch: Dict[str, torch.Tensor], noise: torch.Tensor) -> torch.Tensor:
+    def forward(self, batch: Dict[str, torch.Tensor], noise: torch.Tensor):
         x = batch["x"]
-        x_noise = torch.cat((x, noise), dim=1)
-
-        o = self.linearblock1(x_noise)
-        o = self.convblock1(o)
-        o = self.convblock2(o)
-        o = self.convblock3(o)
-
-        output = self.linear_out(o)
-
-        return output
+        o = self.tcn(x, noise)
+        return self.linear_out(o)
 
 
 class ConditionalDiscriminator(nn.Module):
@@ -102,8 +191,8 @@ class ConditionalDiscriminator(nn.Module):
         self.linear_out = spectral_norm(nn.Linear(hidden_dim, 1), n_power_iterations=10)
 
         if compute_corr and n_features > 1:
-            corr_features = n_features * n_features // 2 - (n_features // 2)
-            self.linear_corr = nn.Linear(corr_features, 1)
+            corr_features = factorial(n_features) // (2 * factorial(n_features - 2))
+            self.linear_corr = spectral_norm(nn.Linear(corr_features, 1), n_power_iterations=10)
 
     def forward(self, batch: Dict[str, torch.Tensor], y_continuation: torch.Tensor) -> torch.Tensor:
         x = batch["x"]
