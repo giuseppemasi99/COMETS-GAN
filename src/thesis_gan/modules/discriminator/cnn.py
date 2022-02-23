@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torch.nn.utils.parametrizations import spectral_norm
 
-from src.thesis_gan.common.utils import corr
+from thesis_gan.common.utils import corr
 
 
 def linear_block(in_features: int, out_features: int, dropout: float) -> nn.Module:
