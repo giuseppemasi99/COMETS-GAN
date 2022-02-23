@@ -52,7 +52,6 @@ class CNNNoiseInterpolationGenerator(nn.Module):
         o = self.convblock2(o)
         o = torch.cat((o, noise_interpolated), dim=1)
         o = self.convblock3(o)
-        o = torch.cat((o, noise_interpolated), dim=1)
 
         output = self.linear_out(o)
         return output
