@@ -17,27 +17,11 @@ from torch.optim import Optimizer
 from nn_core.common import PROJECT_ROOT
 from nn_core.model_logging import NNLogger
 
+import thesis_gan  # noqa
+from thesis_gan.common.utils import autocorrelation, corr
 from thesis_gan.data.datamodule import MetaData
-from thesis_gan.modules.module import ConditionalDiscriminator, ConditionalGenerator, corr
 
 pylogger = logging.getLogger(__name__)
-
-
-# TODO: remove
-def autocorrelation(series: np.ndarray) -> np.ndarray:
-    n = len(series)
-
-    def r(h: float) -> float:
-        return ((series[: n - h] - mean) * (series[h:] - mean)).sum() / n / c0
-
-    mean = np.mean(series)
-    c0 = np.sum((series - mean) ** 2) / n
-    x = np.arange(n) + 1
-    y = np.array([r(loc) for loc in x])
-    return y
-
-
-# TODO: remove
 
 
 class MyLightningModule(pl.LightningModule):
@@ -53,20 +37,15 @@ class MyLightningModule(pl.LightningModule):
 
         self.metadata = metadata
 
-        self.generator = ConditionalGenerator(
-            self.hparams.encoder_length,
-            self.hparams.decoder_length,
-            self.hparams.n_features,
-            self.hparams.dropout,
-            self.hparams.gen_hidden_dim,
+        self.generator = hydra.utils.instantiate(
+            self.hparams.generator,
+            n_features=self.hparams.n_features,
+            _recursive_=False,
         )
-        self.discriminator = ConditionalDiscriminator(
-            self.hparams.encoder_length,
-            self.hparams.decoder_length,
-            self.hparams.n_features,
-            self.hparams.dropout,
-            self.hparams.disc_hidden_dim,
-            self.hparams.compute_corr,
+        self.discriminator = hydra.utils.instantiate(
+            self.hparams.discriminator,
+            n_features=self.hparams.n_features,
+            _recursive_=False,
         )
 
         self.pipeline = metadata.data_pipeline
@@ -149,12 +128,6 @@ class MyLightningModule(pl.LightningModule):
             {"optimizer": opt_g, "frequency": 1},
             {"optimizer": opt_d, "frequency": self.hparams.n_critic},
         )
-
-        # opt = hydra.utils.instantiate(self.hparams.optimizer, params=self.parameters(), _convert_="partial")
-        # if "lr_scheduler" not in self.hparams:
-        #     return [opt]
-        # scheduler = hydra.utils.instantiate(self.hparams.lr_scheduler, optimizer=opt)
-        # return [opt], [scheduler]
 
     def log_correlation_distance(self, y_real: torch.Tensor, y_pred: torch.Tensor) -> None:
         corr_real = corr(y_real)
