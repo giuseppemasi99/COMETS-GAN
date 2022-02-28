@@ -7,8 +7,8 @@ trainer:
   fast_dev_run: False # Enable this for debug purposes
   gpus: 1
   precision: 32
-  max_epochs: 150
-#  max_steps: 10000
+  max_epochs: 300
+  max_steps: -1
   accumulate_grad_batches: 1
   num_sanity_val_steps: 2
 #  gradient_clip_val: 10.0
@@ -16,20 +16,14 @@ trainer:
   deterministic: ${train.deterministic}
 
 restore:
-  ckpt_or_run_path: null
-  mode: null # null, finetune, hotstart, continue
+  ckpt_or_run_path: /home/michele/projects/thesis-gan/storage/thesis-gan/ewxnuuls/checkpoints/epoch=241-step=67759.ckpt.zip
+  mode: continue # null, finetune, hotstart, continue
 
 monitor:
-  metric: 'loss/disc'
+  metric: 'loss/gen'
   mode: 'min'
 
 callbacks:
-#  - _target_: pytorch_lightning.callbacks.EarlyStopping
-#    patience: 42
-#    verbose: False
-#    monitor: ${train.monitor.metric}
-#    mode: ${train.monitor.mode}
-
   - _target_: pytorch_lightning.callbacks.ModelCheckpoint
     save_top_k: -1
     verbose: False
