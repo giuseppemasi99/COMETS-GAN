@@ -1,6 +1,7 @@
 import logging
+import math
 from itertools import combinations
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, Union
 
 import hydra
 import numpy as np
@@ -141,6 +142,52 @@ class MyLightningModule(pl.LightningModule):
             on_epoch=True,
             prog_bar=False,
         )
+
+    def inverse_transform(self, y: torch.Tensor, last_prices: torch.Tensor) -> np.ndarray:
+        y_prices = []
+        for i in range(len(last_prices)):
+            y_prices.append(self.pipeline.inverse_transform(y[i].detach().cpu().numpy().T, last_prices[i]).T)
+
+        return np.stack(y_prices)
+
+    def predict(self, batch: Dict[str, torch.Tensor]) -> Dict[str, Union[torch.Tensor, np.ndarray]]:
+        batch_size, _, encoder_length = batch["x"].shape
+        noise = torch.randn(batch_size, 1, encoder_length)
+
+        y_pred = self(batch, noise)
+        last_prices = batch["x_prices"][:, :, -1]
+        y_pred_prices = self.inverse_transform(y_pred, last_prices)
+
+        return_dict = dict(y_pred=y_pred, y_pred_prices=y_pred_prices)
+
+        return return_dict
+
+    def predict_autoregressively(
+        self, batch: Dict[str, torch.Tensor], prediction_length: Optional[int] = None
+    ) -> Dict[str, Union[torch.Tensor, np.ndarray]]:
+        assert batch["x"].shape[0] == 1
+        noise = torch.randn(1, 1, self.hparams.encoder_length)
+        last_prices = batch["x_prices"][:, :, -1]
+
+        if prediction_length is None:
+            prediction_length = self.hparams.decoder_length
+
+        prediction_iterations = math.ceil(prediction_length / self.hparams.decoder_length)
+
+        y_pred = []
+        batch_ = batch.copy()
+        for i in range(prediction_iterations):
+            o = self(batch_, noise)
+            y_pred.append(o)
+
+            batch_["x"] = torch.cat((batch_["x"], o), dim=-1)[..., self.hparams.decoder_length :]
+
+        y_pred = torch.cat(y_pred, dim=-1)[..., :prediction_length]
+        y_pred_prices = self.pipeline.inverse_transform(y_pred[0].detach().cpu().numpy().T, last_prices).T
+
+        return_dict = dict(y_pred=y_pred, y_pred_prices=y_pred_prices)
+
+        return return_dict
 
     def log_predictions(
         self,
