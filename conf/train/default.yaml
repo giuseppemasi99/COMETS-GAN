@@ -16,8 +16,8 @@ trainer:
   deterministic: ${train.deterministic}
 
 restore:
-  ckpt_or_run_path: /home/michele/projects/thesis-gan/storage/thesis-gan/ewxnuuls/checkpoints/epoch=241-step=67759.ckpt.zip
-  mode: continue # null, finetune, hotstart, continue
+  ckpt_or_run_path: null
+  mode: null # null, finetune, hotstart, continue
 
 monitor:
   metric: 'loss/gen'
