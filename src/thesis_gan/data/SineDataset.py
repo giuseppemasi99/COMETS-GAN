@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -5,10 +7,12 @@ from torch.utils.data import Dataset
 from nn_core.nn_types import Split
 
 
-def sine_data_generation(n_samples: int, seq_len: int, n_features: int) -> np.ndarray:
-    data = []
+def sine_data_generation(n_samples: int, seq_len: int, n_features: int, seed: Optional[int] = None) -> np.ndarray:
+    # Set seed for reproducibility
+    np.random.seed(seed)
 
     # Generate sine data
+    data = []
     for i in range(n_samples):
         # Initialize each time-series
         temp = []
@@ -33,9 +37,9 @@ def sine_data_generation(n_samples: int, seq_len: int, n_features: int) -> np.nd
 
 
 class SineDataset(Dataset):
-    def __init__(self, n_samples: int, seq_len: int, n_features: int, split: Split) -> None:
+    def __init__(self, n_samples: int, seq_len: int, n_features: int, split: Split, seed: Optional[int] = None) -> None:
         super(SineDataset, self).__init__()
-        data = sine_data_generation(n_samples, seq_len, n_features)
+        data = sine_data_generation(n_samples, seq_len, n_features, seed)
         self.data = torch.as_tensor(data).permute(0, 2, 1)
         self.n_samples = n_samples
         self.seq_len = seq_len
