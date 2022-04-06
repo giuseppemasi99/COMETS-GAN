@@ -79,12 +79,14 @@ class MyDataModule(pl.LightningDataModule):
         num_workers: DictConfig,
         batch_size: DictConfig,
         gpus: Optional[Union[List[int], str, int]],
+        dataset_type: str,
     ) -> None:
         super().__init__()
         self.datasets = datasets
         self.data_pipeline = data_pipeline
         self.num_workers = num_workers
         self.batch_size = batch_size
+        self.dataset_type = dataset_type
         # https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html#gpus
         self.pin_memory: bool = gpus is not None and str(gpus) != "0"
         self.train_dataset: Optional[Dataset] = None

@@ -34,7 +34,10 @@ class MyLightningModule(pl.LightningModule):
         # populate self.hparams with args and kwargs automagically!
         # We want to skip metadata since it is saved separately by the
         self.save_hyperparameters(logger=False, ignore=("metadata",))
-        self.hparams.n_features = len(self.hparams.stock_names)
+
+        if self.hparams.dataset_type == "multistock":
+            self.hparams.n_features = len(self.hparams.stock_names)
+            self.pipeline = metadata.data_pipeline
 
         self.metadata = metadata
 
@@ -48,8 +51,6 @@ class MyLightningModule(pl.LightningModule):
             n_features=self.hparams.n_features,
             _recursive_=False,
         )
-
-        self.pipeline = metadata.data_pipeline
 
         self.mse = nn.MSELoss(reduction="none")
 
@@ -76,7 +77,8 @@ class MyLightningModule(pl.LightningModule):
             y_pred = self(batch, noise)
             g_loss = -torch.mean(self.discriminator(batch, y_pred))
             self.log_dict({"loss/gen": g_loss}, on_step=True, on_epoch=True, prog_bar=True)
-            self.log_correlation_distance(y_real, y_pred)
+            if self.hparams.dataset_type == "multistock":
+                self.log_correlation_distance(y_real, y_pred)
             return g_loss
 
         # Train discriminator
@@ -93,11 +95,12 @@ class MyLightningModule(pl.LightningModule):
         if batch_idx % self.hparams.val_log_freq == 0:
             x = batch["x"]
             y = batch["y"]
-            x_prices = batch["x_prices"]
 
             noise = torch.randn(x.shape[0], 1, self.hparams.encoder_length, device=self.device)
             fake = self(batch, noise)
-            self.log_predictions(x, y, fake, x_prices, batch_idx)
+            if self.hparams.dataset_type == "multistock":
+                x_prices = batch["x_prices"]
+                self.log_predictions(x, y, fake, x_prices, batch_idx)
 
     def configure_optimizers(self) -> Tuple[Dict[str, Optimizer], Dict[str, Optimizer]]:
         """Choose what optimizers and learning-rate schedulers to use in your optimization.

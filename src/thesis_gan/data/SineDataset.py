@@ -6,6 +6,8 @@ from torch.utils.data import Dataset
 
 from nn_core.nn_types import Split
 
+from thesis_gan.data.pipeline import Pipeline
+
 
 def sine_data_generation(n_samples: int, seq_len: int, n_features: int, seed: Optional[int] = None) -> np.ndarray:
     # Set seed for reproducibility
@@ -44,12 +46,13 @@ class SineDataset(Dataset):
         decoder_length: int,
         n_features: int,
         split: Split,
+        data_pipeline: Pipeline,
         seed: Optional[int] = None,
     ) -> None:
         super(SineDataset, self).__init__()
         seq_len = encoder_length + decoder_length
         data = sine_data_generation(n_samples, seq_len, n_features, seed)
-        self.data = torch.as_tensor(data).permute(0, 2, 1)
+        self.data = torch.as_tensor(data, dtype=torch.float).permute(0, 2, 1)
         self.n_samples = n_samples
         self.encoder_length = encoder_length
         self.decoder_length = decoder_length
