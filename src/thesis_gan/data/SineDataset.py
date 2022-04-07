@@ -57,6 +57,7 @@ class SineDataset(Dataset):
         self.encoder_length = encoder_length
         self.decoder_length = decoder_length
         self.n_features = n_features
+        self.data_pipeline = data_pipeline
         self.split = split
 
     def __len__(self) -> int:

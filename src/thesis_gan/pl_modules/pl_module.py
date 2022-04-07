@@ -35,11 +35,10 @@ class MyLightningModule(pl.LightningModule):
         # We want to skip metadata since it is saved separately by the
         self.save_hyperparameters(logger=False, ignore=("metadata",))
 
+        self.metadata = metadata
+
         if self.hparams.dataset_type == "multistock":
             self.hparams.n_features = len(self.hparams.stock_names)
-            self.pipeline = metadata.data_pipeline
-
-        self.metadata = metadata
 
         self.generator = hydra.utils.instantiate(
             self.hparams.generator,
@@ -51,6 +50,8 @@ class MyLightningModule(pl.LightningModule):
             n_features=self.hparams.n_features,
             _recursive_=False,
         )
+
+        self.pipeline = metadata.data_pipeline
 
         self.mse = nn.MSELoss(reduction="none")
 
@@ -93,14 +94,12 @@ class MyLightningModule(pl.LightningModule):
 
     def validation_step(self, batch: Any, batch_idx: int) -> None:
         if batch_idx % self.hparams.val_log_freq == 0:
-            x = batch["x"]
-            y = batch["y"]
-
-            noise = torch.randn(x.shape[0], 1, self.hparams.encoder_length, device=self.device)
+            noise = torch.randn(batch["x"].shape[0], 1, self.hparams.encoder_length, device=self.device)
             fake = self(batch, noise)
             if self.hparams.dataset_type == "multistock":
-                x_prices = batch["x_prices"]
-                self.log_predictions(x, y, fake, x_prices, batch_idx)
+                self.log_multistock(batch, fake, batch_idx)
+            elif self.hparams.dataset_type == "sines":
+                self.log_sines(batch, fake, batch_idx)
 
     def configure_optimizers(self) -> Tuple[Dict[str, Optimizer], Dict[str, Optimizer]]:
         """Choose what optimizers and learning-rate schedulers to use in your optimization.
@@ -192,19 +191,16 @@ class MyLightningModule(pl.LightningModule):
 
         return return_dict
 
-    def log_predictions(
-        self,
-        x: torch.Tensor,
-        y: torch.Tensor,
-        y_pred: torch.Tensor,
-        prices: torch.Tensor,
-        batch_idx: int,
-    ) -> None:
+    def log_multistock(self, batch: Dict[str, torch.Tensor], y_pred: torch.Tensor, batch_idx: int) -> None:
         history_indexes = np.arange(self.hparams.encoder_length)
         continuation_indexes = np.arange(
             self.hparams.encoder_length,
             self.hparams.encoder_length + self.hparams.decoder_length,
         )
+
+        x = batch["x"]
+        y = batch["y"]
+        prices = batch["x_prices"]
 
         history = x[0].detach().cpu().numpy().T
         real = y[0].detach().cpu().numpy().T
@@ -309,6 +305,54 @@ class MyLightningModule(pl.LightningModule):
         title = f"Epoch {self.current_epoch} ({batch_idx})"
         self.logger.experiment.log({title: wandb.Image(fig)})
 
+        plt.close(fig)
+
+    def log_sines(self, batch: Dict[str, torch.Tensor], y_pred: torch.Tensor, batch_idx: int) -> None:
+        history_indexes = np.arange(self.hparams.encoder_length)
+        continuation_indexes = np.arange(
+            self.hparams.encoder_length,
+            self.hparams.encoder_length + self.hparams.decoder_length,
+        )
+
+        x = batch["x"]
+        y = batch["y"]
+
+        history = x[0].detach().cpu().numpy()
+        real = y[0].detach().cpu().numpy()
+        preds = y_pred[0].detach().cpu().numpy()
+
+        fig, ax = plt.subplots(1, self.hparams.n_features, figsize=(7 * self.hparams.n_features, 4))
+        legend_elements = [
+            Line2D([0], [0], color="C0", lw=2, label="Observed"),
+            Line2D([0], [0], color="C1", lw=2, label="Real continuation"),
+            Line2D([0], [0], color="C2", lw=2, label="Predicted continuation"),
+        ]
+
+        for target_idx in range(self.hparams.n_features):
+            # Plot of prices
+            title = f"Feature {target_idx}"
+            ax[target_idx].set_title(title)
+
+            ax[target_idx].plot(
+                history_indexes,
+                history[target_idx],
+                color="C0",
+            )
+            ax[target_idx].plot(
+                continuation_indexes,
+                real[target_idx],
+                color="C1",
+            )
+            ax[target_idx].plot(
+                continuation_indexes,
+                preds[target_idx],
+                color="C2",
+            )
+
+        fig.legend(handles=legend_elements, loc="upper right", ncol=1)
+        fig.tight_layout()
+        title = f"Epoch {self.current_epoch} ({batch_idx})"
+        self.logger.experiment.log({title: wandb.Image(fig)})
         plt.close(fig)
 
 
