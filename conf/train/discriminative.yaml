@@ -7,8 +7,8 @@ trainer:
   fast_dev_run: False # Enable this for debug purposes
   gpus: 1
   precision: 32
-  max_epochs: 100
-  max_steps: -1
+  max_epochs: 300
+  max_steps: 2000
   accumulate_grad_batches: 1
   num_sanity_val_steps: 2
 #  gradient_clip_val: 10.0
@@ -20,7 +20,7 @@ restore:
   mode: null # null, finetune, hotstart, continue
 
 monitor:
-  metric: 'loss/gen'
+  metric: 'loss/val'
   mode: 'min'
 
 callbacks:
@@ -45,7 +45,7 @@ logging:
   logger:
     _target_: pytorch_lightning.loggers.WandbLogger
 
-    project: ${core.project_name}
+    project: thesis-gan-discriminative-rnn
     entity: null
     log_model: ${..upload.run_files}
     mode: 'online'

@@ -1,0 +1,45 @@
+n_features: 5
+hidden_dim: 2
+
+data:
+  _target_: thesis_gan.data.discriminative_datamodule.MyDataModule
+
+  datasets:
+    train:
+      _target_: thesis_gan.data.discriminative_dataset.DiscriminativeDataset
+      path: ${oc.env:PROJECT_ROOT}/data/train_sines.pt
+
+    val:
+      - _target_: thesis_gan.data.discriminative_dataset.DiscriminativeDataset
+        path: ${oc.env:PROJECT_ROOT}/data/val_sines.pt
+
+    test:
+      - _target_: thesis_gan.data.discriminative_dataset.DiscriminativeDataset
+        path: ${oc.env:PROJECT_ROOT}/data/test_sines.pt
+
+  gpus: ${train.trainer.gpus}
+
+  num_workers:
+    train: 12
+    val: 12
+    test: 12
+
+  batch_size:
+    train: 128
+    val: 128
+    test: 128
+
+module:
+  _target_: thesis_gan.pl_modules.discriminative_pl_datamodule.MyLightningModule
+
+  n_features: ${nn.n_features}
+  hidden_dim: ${nn.hidden_dim}
+
+  optimizer:
+    #  Adam-oriented deep learning
+    _target_: torch.optim.Adam
+    #  These are all default parameters for the Adam optimizer
+    lr: 0.001
+    betas: [ 0.9, 0.999 ]
+    eps: 1e-08
+    weight_decay: 0
