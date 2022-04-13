@@ -1,6 +1,6 @@
 dataset_type: "sines"
-encoder_length: 50
-decoder_length: 50
+encoder_length: 24
+decoder_length: 24
 n_features: 5
 
 
@@ -70,14 +70,14 @@ module:
     _target_: thesis_gan.modules.generator.cnn.CNNGenerator
     encoder_length: ${nn.encoder_length}
     decoder_length: ${nn.decoder_length}
-    hidden_dim: 64
+    hidden_dim: 128
     dropout: 0.2
 
   discriminator:
     _target_: thesis_gan.modules.discriminator.cnn.CNNDiscriminator
     encoder_length: ${nn.encoder_length}
     decoder_length: ${nn.decoder_length}
-    hidden_dim: 32
+    hidden_dim: 128
     dropout: 0.2
     compute_corr: False
 
