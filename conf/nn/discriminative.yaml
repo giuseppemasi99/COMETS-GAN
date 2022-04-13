@@ -1,5 +1,7 @@
 n_features: 5
 hidden_dim: 2
+data_dir: ${oc.env:PROJECT_ROOT}/data
+
 
 data:
   _target_: thesis_gan.data.discriminative_datamodule.MyDataModule
@@ -7,15 +9,15 @@ data:
   datasets:
     train:
       _target_: thesis_gan.data.discriminative_dataset.DiscriminativeDataset
-      path: ${oc.env:PROJECT_ROOT}/data/train_sines.pt
+      path: ${nn.data_dir}/train.pt
 
     val:
       - _target_: thesis_gan.data.discriminative_dataset.DiscriminativeDataset
-        path: ${oc.env:PROJECT_ROOT}/data/val_sines.pt
+        path: ${nn.data_dir}/test.pt
 
     test:
       - _target_: thesis_gan.data.discriminative_dataset.DiscriminativeDataset
-        path: ${oc.env:PROJECT_ROOT}/data/test_sines.pt
+        path: ${nn.data_dir}/test.pt
 
   gpus: ${train.trainer.gpus}
 
@@ -30,7 +32,7 @@ data:
     test: 128
 
 module:
-  _target_: thesis_gan.pl_modules.discriminative_pl_datamodule.MyLightningModule
+  _target_: thesis_gan.pl_modules.discriminative_pl_module.MyLightningModule
 
   n_features: ${nn.n_features}
   hidden_dim: ${nn.hidden_dim}
