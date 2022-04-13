@@ -1,0 +1,95 @@
+dataset_type: "gaussian"
+encoder_length: 24
+decoder_length: 24
+n_features: 5
+phi: 0.5
+sigma: 0.2
+
+
+data:
+  _target_: thesis_gan.data.datamodule.MyDataModule
+
+  dataset_type: ${nn.dataset_type}
+
+  data_pipeline:
+    _target_: thesis_gan.data.pipeline.LogReturnPipeline
+    scaler:
+      _target_: sklearn.preprocessing.StandardScaler
+
+  datasets:
+    train:
+      _target_: thesis_gan.data.autoregressive_gaussian.ARGaussianDataset
+      n_samples: 100000
+      encoder_length: ${nn.encoder_length}
+      decoder_length: ${nn.decoder_length}
+      n_features: ${nn.n_features}
+      phi: ${nn.phi}
+      sigma: ${nn.sigma}
+      seed: 42
+
+
+
+    val:
+      - _target_: thesis_gan.data.autoregressive_gaussian.ARGaussianDataset
+        n_samples: 5000
+        encoder_length: ${nn.encoder_length}
+        decoder_length: ${nn.decoder_length}
+        n_features: ${nn.n_features}
+        phi: ${nn.phi}
+        sigma: ${nn.sigma}
+        seed: 42
+    test:
+      - _target_: thesis_gan.data.autoregressive_gaussian.ARGaussianDataset
+        n_samples: 5000
+        encoder_length: ${nn.encoder_length}
+        decoder_length: ${nn.decoder_length}
+        n_features: ${nn.n_features}
+        phi: ${nn.phi}
+        sigma: ${nn.sigma}
+        seed: 42
+
+  gpus: ${train.trainer.gpus}
+
+  num_workers:
+    train: 12
+    val: 12
+    test: 12
+
+  batch_size:
+    train: 128
+    val: 128
+    test: 128
+
+module:
+  _target_: thesis_gan.pl_modules.pl_module.MyLightningModule
+
+  dataset_type: ${nn.dataset_type}
+  n_features: ${nn.n_features}
+
+  optimizer_g:
+    _target_: torch.optim.RMSprop
+    lr: 1e-4
+
+  optimizer_d:
+    _target_: torch.optim.RMSprop
+    lr: 3e-4
+
+  generator:
+    _target_: thesis_gan.modules.generator.cnn.CNNGenerator
+    encoder_length: ${nn.encoder_length}
+    decoder_length: ${nn.decoder_length}
+    hidden_dim: 128
+    dropout: 0.2
+
+  discriminator:
+    _target_: thesis_gan.modules.discriminator.cnn.CNNDiscriminator
+    encoder_length: ${nn.encoder_length}
+    decoder_length: ${nn.decoder_length}
+    hidden_dim: 128
+    dropout: 0.2
+    compute_corr: False
+
+  encoder_length: ${nn.encoder_length}
+  decoder_length: ${nn.decoder_length}
+  n_critic: 5
+  val_log_freq: 5

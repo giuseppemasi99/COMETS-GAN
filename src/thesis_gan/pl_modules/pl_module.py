@@ -98,8 +98,8 @@ class MyLightningModule(pl.LightningModule):
             fake = self(batch, noise)
             if self.hparams.dataset_type == "multistock":
                 self.log_multistock(batch, fake, batch_idx)
-            elif self.hparams.dataset_type == "sines":
-                self.log_sines(batch, fake, batch_idx)
+            elif self.hparams.dataset_type == "sines" or self.hparams.dataset_type == "gaussian":
+                self.log_sines_gaussian(batch, fake, batch_idx)
 
     def configure_optimizers(self) -> Tuple[Dict[str, Optimizer], Dict[str, Optimizer]]:
         """Choose what optimizers and learning-rate schedulers to use in your optimization.
@@ -307,7 +307,7 @@ class MyLightningModule(pl.LightningModule):
 
         plt.close(fig)
 
-    def log_sines(self, batch: Dict[str, torch.Tensor], y_pred: torch.Tensor, batch_idx: int) -> None:
+    def log_sines_gaussian(self, batch: Dict[str, torch.Tensor], y_pred: torch.Tensor, batch_idx: int) -> None:
         history_indexes = np.arange(self.hparams.encoder_length)
         continuation_indexes = np.arange(
             self.hparams.encoder_length,
