@@ -11,13 +11,6 @@ This repository contains the codebase of my thesis work in the MSc in Computer S
 The main contributions of this work are i) the introduction of a novel deep learning architecture to solve the problem of generating multiple interdependent stock traces simultaneously, based on Wasserstein GANs with a revised critic score; ii) the development of a new metric, the *Cross-Correlation Distance*, to keep track of the model's ability to capture the interdependence aspects in the generated timeseries.
 
 
-## Installation
-
-```bash
-pip install git+ssh://git@github.com/mikcnt/thesis-gan.git
-```
-
-
 ## Quickstart
 The repository is organized as follows:
 * Directory `conf` contains the yaml configuration files used through the project to load the data, train and evaluate the models;
