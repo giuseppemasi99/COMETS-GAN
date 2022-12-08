@@ -45,6 +45,7 @@ class MyLightningModule(pl.LightningModule):
             n_features=self.hparams.n_features,
             _recursive_=False,
         )
+
         self.discriminator = hydra.utils.instantiate(
             self.hparams.discriminator,
             n_features=self.hparams.n_features,
@@ -64,7 +65,10 @@ class MyLightningModule(pl.LightningModule):
         Returns:
             output_dict: forward output containing the predictions (output logits ecc...) and the loss if any.
         """
-        return self.generator(x, noise)
+        out = self.generator(x, noise)
+        # out.shape = [batch_size, n_features, decoder_length]
+
+        return out
 
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int, optimizer_idx: int) -> torch.Tensor:
         x = batch["x"]
@@ -140,6 +144,30 @@ class MyLightningModule(pl.LightningModule):
         corr_distances = self.mse(corr_real, corr_pred).mean(dim=0)
         self.log_dict(
             {metric: corr_dist.item() for metric, corr_dist in zip(metric_names, corr_distances)},
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
+        )
+
+        metric_names = [f"real_avg_correlation/{'-'.join(x)}" for x in combinations(self.hparams.stock_names, 2)]
+        real_avg_correlations = torch.mean(corr_real, dim=0)
+        self.log_dict(
+            {
+                metric: real_avg_correlation.item()
+                for metric, real_avg_correlation in zip(metric_names, real_avg_correlations)
+            },
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
+        )
+
+        metric_names = [f"pred_avg_correlation/{'-'.join(x)}" for x in combinations(self.hparams.stock_names, 2)]
+        pred_avg_correlations = torch.mean(corr_pred, dim=0)
+        self.log_dict(
+            {
+                metric: pred_avg_correlation.item()
+                for metric, pred_avg_correlation in zip(metric_names, pred_avg_correlations)
+            },
             on_step=True,
             on_epoch=True,
             prog_bar=False,
