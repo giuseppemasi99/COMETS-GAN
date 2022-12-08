@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import hydra
+import numpy as np
 import omegaconf
 import pandas as pd
 import torch
@@ -17,12 +18,14 @@ class StockDataset(Dataset):
     def __init__(
         self,
         path: Path,
-        target_feature: str,
+        target_feature_price: str,
+        target_feature_volume: str,
         stock_names: List[str],
         encoder_length: int,
         decoder_length: int,
         stride: int,
-        data_pipeline: Pipeline,
+        data_pipeline_price: Pipeline,
+        data_pipeline_volume: Pipeline,
         split: Split,
     ) -> None:
         super().__init__()
@@ -30,15 +33,21 @@ class StockDataset(Dataset):
         self.encoder_length = encoder_length
         self.decoder_length = decoder_length
         self.stride = stride
-        self.data_pipeline = data_pipeline
+        self.data_pipeline_price = data_pipeline_price
+        self.data_pipeline_volume = data_pipeline_volume
         self.split = split
 
-        targets = [f"{target_feature}_{stock}" for stock in stock_names]
+        targets_price = [f"{target_feature_price}_{stock}" for stock in stock_names]
+        targets_volume = [f"{target_feature_volume}_{stock}" for stock in stock_names]
 
         # Preprocess dataset targets
-        self.data = data_pipeline.preprocess(self.df, targets)
+        data_price = data_pipeline_price.preprocess(self.df, targets_price)
+        data_volume = data_pipeline_volume.preprocess(self.df, targets_volume)
+        self.data = np.concatenate((data_price, data_volume), axis=1)
+
         # Keep non preprocessed prices
-        self.prices = self.df[targets].to_numpy()
+        self.prices = self.df[targets_price].to_numpy()
+        self.volumes = self.df[targets_volume].to_numpy()
 
     def __len__(self) -> int:
         # Length of dataset is similar to output size of convolution
@@ -54,23 +63,29 @@ class StockDataset(Dataset):
         x = torch.as_tensor(self.data[x_slice].T, dtype=torch.float)
         y = torch.as_tensor(self.data[y_slice].T, dtype=torch.float)
         x_prices = torch.as_tensor(self.prices[x_slice].T, dtype=torch.float)
+        x_volumes = torch.as_tensor(self.volumes[x_slice].T, dtype=torch.float)
 
-        return {"x": x, "y": y, "x_prices": x_prices}
+        return {"x": x, "y": y, "x_prices": x_prices, "x_volumes": x_volumes}
 
     def __repr__(self) -> str:
         return f"StockDataset({self.split=}, n_instances={len(self)})"
 
 
-@hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default")
+@hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default", version_base=None)
 def main(cfg: omegaconf.DictConfig) -> None:
     """Debug main to quickly develop the Dataset.
 
     Args:
         cfg: the hydra configuration
     """
-    pipeline = hydra.utils.instantiate(cfg.nn.data.data_pipeline)
+    pipeline_price = hydra.utils.instantiate(cfg.nn.data.data_pipeline_price)
+    pipeline_volume = hydra.utils.instantiate(cfg.nn.data.data_pipeline_volume)
     _: Dataset = hydra.utils.instantiate(
-        cfg.nn.data.datasets.train, split="train", data_pipeline=pipeline, _recursive_=False
+        cfg.nn.data.datasets.train,
+        split="train",
+        data_pipeline_price=pipeline_price,
+        data_pipeline_volume=pipeline_volume,
+        _recursive_=False,
     )
 
 
