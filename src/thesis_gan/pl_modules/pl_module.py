@@ -38,7 +38,8 @@ class MyLightningModule(pl.LightningModule):
         self.metadata = metadata
 
         if self.hparams.dataset_type == "multistock":
-            self.hparams.n_features = len(self.hparams.stock_names)
+            self.hparams.n_stocks = len(self.hparams.stock_names)
+            self.hparams.n_features = 2 * self.hparams.n_stocks
 
         self.generator = hydra.utils.instantiate(
             self.hparams.generator,
@@ -65,6 +66,7 @@ class MyLightningModule(pl.LightningModule):
         Returns:
             output_dict: forward output containing the predictions (output logits ecc...) and the loss if any.
         """
+        # x.shape = [batch_size, n_features, encoder_length]
         out = self.generator(x, noise)
         # out.shape = [batch_size, n_features, decoder_length]
 
