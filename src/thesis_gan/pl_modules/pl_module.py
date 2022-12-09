@@ -70,7 +70,6 @@ class MyLightningModule(pl.LightningModule):
         # x.shape = [batch_size, n_features, encoder_length]
         out = self.generator(x, noise)
         # out.shape = [batch_size, n_features, decoder_length]
-
         return out
 
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int, optimizer_idx: int) -> torch.Tensor:
@@ -82,19 +81,20 @@ class MyLightningModule(pl.LightningModule):
 
         # Train generator
         if optimizer_idx == 0:
-            y_pred = self(batch, noise)
-            g_loss = -torch.mean(self.discriminator(batch, y_pred))
+            y_pred = self(x, noise)
+            g_loss = -torch.mean(self.discriminator(x, y_pred))
             self.log_dict({"loss/gen": g_loss}, on_step=True, on_epoch=True, prog_bar=True)
             if self.hparams.dataset_type == "multistock":
+                self.log_correlation(y_real, "real")
+                self.log_correlation(y_pred, "pred")
                 self.log_correlation_distance(y_real, y_pred)
             return g_loss
 
         # Train discriminator
         elif optimizer_idx == 1:
-            y_pred = self(batch, noise)
-
-            real_validity = self.discriminator(batch, y_real)
-            fake_validity = self.discriminator(batch, y_pred)
+            y_pred = self(x, noise)
+            real_validity = self.discriminator(x, y_real)
+            fake_validity = self.discriminator(x, y_pred)
             d_loss = -torch.mean(real_validity) + torch.mean(fake_validity)
             self.log_dict({"loss/disc": d_loss}, on_step=True, on_epoch=True, prog_bar=True)
             return d_loss
@@ -102,48 +102,57 @@ class MyLightningModule(pl.LightningModule):
     def validation_step(self, batch: Any, batch_idx: int) -> None:
         if batch_idx % self.hparams.val_log_freq == 0:
             noise = torch.randn(batch["x"].shape[0], 1, self.hparams.encoder_length, device=self.device)
-            fake = self(batch, noise)
+            fake = self(batch["x"], noise)
             if self.hparams.dataset_type == "multistock":
-                self.log_multistock(batch, fake, batch_idx)
+                x, y = batch["x"], batch["y"]
+                x_prices, x_volumes = x[:, : self.hparams.n_stocks, :], x[:, self.hparams.n_stocks :, :]
+                y_prices, y_volumes = y[:, : self.hparams.n_stocks, :], y[:, self.hparams.n_stocks :, :]
+                prices, volumes = batch["x_prices"], batch["x_volumes"]
+                fake_prices, fake_volumes = fake[:, : self.hparams.n_stocks, :], fake[:, self.hparams.n_stocks :, :]
+                self.log_multistock_prices(x_prices, y_prices, prices, fake_prices, batch_idx)
+                self.log_multistock_volumes(x_volumes, y_volumes, volumes, fake_volumes, batch_idx)
             elif self.hparams.dataset_type == "sines" or self.hparams.dataset_type == "gaussian":
                 self.log_sines_gaussian(batch, fake, batch_idx)
 
-    def configure_optimizers(self) -> Tuple[Dict[str, Optimizer], Dict[str, Optimizer]]:
-        """Choose what optimizers and learning-rate schedulers to use in your optimization.
+    def log_correlation(self, y_realOpred: torch.Tensor, realOpred: str) -> None:
+        correlation = corr(y_realOpred)
 
-        Normally you'd need one. But in the case of GANs or similar you might have multiple.
+        feature_names = [
+            "KO_price",
+            "PEP_price",
+            "NVDA_price",
+            "KSU_price",
+            "KO_volume",
+            "PEP_volume",
+            "NVDA_volume",
+            "KSU_volume",
+        ]
+        metric_names = [f"{realOpred}_avg_correlation/{'-'.join(x)}" for x in combinations(feature_names, 2)]
+        avg_correlations = torch.mean(correlation, dim=0)
 
-        Return:
-            Any of these 6 options.
-            - Single optimizer.
-            - List or Tuple - List of optimizers.
-            - Two lists - The first list has multiple optimizers, the second a list of LR schedulers (or lr_dict).
-            - Dictionary, with an 'optimizer' key, and (optionally) a 'lr_scheduler'
-              key whose value is a single LR scheduler or lr_dict.
-            - Tuple of dictionaries as described, with an optional 'frequency' key.
-            - None - Fit will run without any optimizer.
-        """
-        opt_g = hydra.utils.instantiate(
-            self.hparams.optimizer_g,
-            params=self.generator.parameters(),
-            _convert_="partial",
-        )
-        opt_d = hydra.utils.instantiate(
-            self.hparams.optimizer_d,
-            params=self.discriminator.parameters(),
-            _convert_="partial",
-        )
-
-        return (
-            {"optimizer": opt_g, "frequency": 1},
-            {"optimizer": opt_d, "frequency": self.hparams.n_critic},
+        self.log_dict(
+            {metric: avg_correlation.item() for metric, avg_correlation in zip(metric_names, avg_correlations)},
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
         )
 
     def log_correlation_distance(self, y_real: torch.Tensor, y_pred: torch.Tensor) -> None:
         corr_real = corr(y_real)
         corr_pred = corr(y_pred)
 
-        metric_names = [f"corr_dist/{'-'.join(x)}" for x in combinations(self.hparams.stock_names, 2)]
+        feature_names = [
+            "KO_price",
+            "PEP_price",
+            "NVDA_price",
+            "KSU_price",
+            "KO_volume",
+            "PEP_volume",
+            "NVDA_volume",
+            "KSU_volume",
+        ]
+        metric_names = [f"corr_dist/{'-'.join(x)}" for x in combinations(feature_names, 2)]
+
         corr_distances = self.mse(corr_real, corr_pred).mean(dim=0)
         self.log_dict(
             {metric: corr_dist.item() for metric, corr_dist in zip(metric_names, corr_distances)},
@@ -152,86 +161,15 @@ class MyLightningModule(pl.LightningModule):
             prog_bar=False,
         )
 
-        metric_names = [f"real_avg_correlation/{'-'.join(x)}" for x in combinations(self.hparams.stock_names, 2)]
-        real_avg_correlations = torch.mean(corr_real, dim=0)
-        self.log_dict(
-            {
-                metric: real_avg_correlation.item()
-                for metric, real_avg_correlation in zip(metric_names, real_avg_correlations)
-            },
-            on_step=True,
-            on_epoch=True,
-            prog_bar=False,
-        )
+    def log_multistock_prices(
+        self, x: torch.Tensor, y: torch.Tensor, prices: torch.Tensor, y_pred: torch.Tensor, batch_idx: int
+    ) -> None:
 
-        metric_names = [f"pred_avg_correlation/{'-'.join(x)}" for x in combinations(self.hparams.stock_names, 2)]
-        pred_avg_correlations = torch.mean(corr_pred, dim=0)
-        self.log_dict(
-            {
-                metric: pred_avg_correlation.item()
-                for metric, pred_avg_correlation in zip(metric_names, pred_avg_correlations)
-            },
-            on_step=True,
-            on_epoch=True,
-            prog_bar=False,
-        )
-
-    def inverse_transform(self, y: torch.Tensor, last_prices: torch.Tensor) -> np.ndarray:
-        y_prices = []
-        for i in range(len(last_prices)):
-            y_prices.append(self.pipeline.inverse_transform(y[i].detach().cpu().numpy().T, last_prices[i]).T)
-
-        return np.stack(y_prices)
-
-    def predict(self, batch: Dict[str, torch.Tensor]) -> Dict[str, Union[torch.Tensor, np.ndarray]]:
-        batch_size, _, encoder_length = batch["x"].shape
-        noise = torch.randn(batch_size, 1, encoder_length)
-
-        y_pred = self(batch, noise)
-        last_prices = batch["x_prices"][:, :, -1]
-        y_pred_prices = self.inverse_transform(y_pred, last_prices)
-
-        return_dict = dict(y_pred=y_pred, y_pred_prices=y_pred_prices)
-
-        return return_dict
-
-    def predict_autoregressively(
-        self, batch: Dict[str, torch.Tensor], prediction_length: Optional[int] = None
-    ) -> Dict[str, Union[torch.Tensor, np.ndarray]]:
-        assert batch["x"].shape[0] == 1
-        noise = torch.randn(1, 1, self.hparams.encoder_length)
-        last_prices = batch["x_prices"][:, :, -1]
-
-        if prediction_length is None:
-            prediction_length = self.hparams.decoder_length
-
-        prediction_iterations = math.ceil(prediction_length / self.hparams.decoder_length)
-
-        y_pred = []
-        batch_ = batch.copy()
-        for i in range(prediction_iterations):
-            o = self(batch_, noise)
-            y_pred.append(o)
-
-            batch_["x"] = torch.cat((batch_["x"], o), dim=-1)[..., self.hparams.decoder_length :]
-
-        y_pred = torch.cat(y_pred, dim=-1)[..., :prediction_length]
-        y_pred_prices = self.pipeline.inverse_transform(y_pred[0].detach().cpu().numpy().T, last_prices).T
-
-        return_dict = dict(y_pred=y_pred, y_pred_prices=y_pred_prices)
-
-        return return_dict
-
-    def log_multistock(self, batch: Dict[str, torch.Tensor], y_pred: torch.Tensor, batch_idx: int) -> None:
         history_indexes = np.arange(self.hparams.encoder_length)
         continuation_indexes = np.arange(
             self.hparams.encoder_length,
             self.hparams.encoder_length + self.hparams.decoder_length,
         )
-
-        x = batch["x"]
-        y = batch["y"]
-        prices = batch["x_prices"]
 
         history = x[0].detach().cpu().numpy().T
         real = y[0].detach().cpu().numpy().T
@@ -240,20 +178,20 @@ class MyLightningModule(pl.LightningModule):
         history_prices = prices[0].detach().cpu().numpy()
         last_prices = history_prices[:, -1]
 
-        real_prices = self.pipeline.inverse_transform(real, last_prices).T
-        preds_prices = self.pipeline.inverse_transform(preds, last_prices).T
+        real_prices = self.pipeline_price.inverse_transform(real, last_prices).T
+        preds_prices = self.pipeline_price.inverse_transform(preds, last_prices).T
 
         history_and_real = np.concatenate((history, real), axis=0)
         history_and_preds = np.concatenate((history, preds), axis=0)
 
-        fig, ax = plt.subplots(4, self.hparams.n_features, figsize=(7 * self.hparams.n_features, 10))
+        fig, ax = plt.subplots(4, self.hparams.n_stocks, figsize=(7 * self.hparams.n_stocks, 10))
         legend_elements = [
             Line2D([0], [0], color="C0", lw=2, label="Observed"),
             Line2D([0], [0], color="C1", lw=2, label="Real continuation"),
             Line2D([0], [0], color="C2", lw=2, label="Predicted continuation"),
         ]
 
-        for target_idx in range(self.hparams.n_features):
+        for target_idx in range(self.hparams.n_stocks):
             stock_name = self.hparams.stock_names[target_idx]
 
             # Plot of prices
@@ -333,10 +271,186 @@ class MyLightningModule(pl.LightningModule):
 
         fig.legend(handles=legend_elements, loc="upper right", ncol=1)
         fig.tight_layout()
-        title = f"Epoch {self.current_epoch} ({batch_idx})"
+        title = f"Prices - Epoch {self.current_epoch} ({batch_idx})"
         self.logger.experiment.log({title: wandb.Image(fig)})
 
         plt.close(fig)
+
+    def log_multistock_volumes(
+        self, x: torch.Tensor, y: torch.Tensor, volumes: torch.Tensor, y_pred: torch.Tensor, batch_idx: int
+    ) -> None:
+        history_indexes = np.arange(self.hparams.encoder_length)
+        continuation_indexes = np.arange(
+            self.hparams.encoder_length,
+            self.hparams.encoder_length + self.hparams.decoder_length,
+        )
+
+        history = x[0].detach().cpu().numpy().T
+        real = y[0].detach().cpu().numpy().T
+        preds = y_pred[0].detach().cpu().numpy().T
+
+        history_volumes = volumes[0].detach().cpu().numpy()
+        last_volumes = history_volumes[:, -1]
+
+        real_volumes = self.pipeline_volume.inverse_transform(real, last_volumes).T
+        preds_volumes = self.pipeline_volume.inverse_transform(preds, last_volumes).T
+
+        history_and_real = np.concatenate((history, real), axis=0)
+        history_and_preds = np.concatenate((history, preds), axis=0)
+
+        fig, ax = plt.subplots(2, self.hparams.n_stocks, figsize=(7 * self.hparams.n_stocks, 10))
+        legend_elements = [
+            Line2D([0], [0], color="C0", lw=2, label="Observed"),
+            Line2D([0], [0], color="C1", lw=2, label="Real continuation"),
+            Line2D([0], [0], color="C2", lw=2, label="Predicted continuation"),
+        ]
+
+        for target_idx in range(self.hparams.n_stocks):
+            stock_name = self.hparams.stock_names[target_idx]
+
+            # Plot of volumes
+            title = f"{stock_name} - Volume"
+            ax[0, target_idx].set_title(title)
+
+            ax[0, target_idx].plot(
+                history_indexes,
+                history_volumes[target_idx],
+                color="C0",
+            )
+            ax[0, target_idx].plot(
+                continuation_indexes,
+                real_volumes[target_idx],
+                color="C1",
+            )
+            ax[0, target_idx].plot(
+                continuation_indexes,
+                preds_volumes[target_idx],
+                color="C2",
+            )
+
+            # Autocorrelation distributions
+            title = f"{stock_name} - Autocorrelation"
+            ax[1, target_idx].set_title(title)
+
+            autocorr_real = autocorrelation(history_and_real[:, target_idx])
+            autocorr_preds = autocorrelation(history_and_preds[:, target_idx])
+            sns.histplot(
+                autocorr_real,
+                color="C1",
+                kde=True,
+                stat="density",
+                linewidth=0,
+                ax=ax[1, target_idx],
+            )
+            sns.histplot(
+                autocorr_preds,
+                color="C2",
+                kde=True,
+                stat="density",
+                linewidth=0,
+                ax=ax[1, target_idx],
+            )
+
+        fig.legend(handles=legend_elements, loc="upper right", ncol=1)
+        fig.tight_layout()
+        title = f"Volumes - Epoch {self.current_epoch} ({batch_idx})"
+        self.logger.experiment.log({title: wandb.Image(fig)})
+
+        means = np.mean(history_and_real, axis=0)
+        metric_names = [f"Real Volume: Mean/{'-'.join(x)}" for x in combinations(self.hparams.stock_names, 2)]
+        self.log_dict(
+            {metric: mean for metric, mean in zip(metric_names, means)},
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
+        )
+
+        means = np.mean(history_and_preds, axis=0)
+        metric_names = [f"Preds Volume: Mean/{'-'.join(x)}" for x in combinations(self.hparams.stock_names, 2)]
+        self.log_dict(
+            {metric: mean for metric, mean in zip(metric_names, means)},
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
+        )
+
+    def configure_optimizers(self) -> Tuple[Dict[str, Optimizer], Dict[str, Optimizer]]:
+        """Choose what optimizers and learning-rate schedulers to use in your optimization.
+
+        Normally you'd need one. But in the case of GANs or similar you might have multiple.
+
+        Return:
+            Any of these 6 options.
+            - Single optimizer.
+            - List or Tuple - List of optimizers.
+            - Two lists - The first list has multiple optimizers, the second a list of LR schedulers (or lr_dict).
+            - Dictionary, with an 'optimizer' key, and (optionally) a 'lr_scheduler'
+              key whose value is a single LR scheduler or lr_dict.
+            - Tuple of dictionaries as described, with an optional 'frequency' key.
+            - None - Fit will run without any optimizer.
+        """
+        opt_g = hydra.utils.instantiate(
+            self.hparams.optimizer_g,
+            params=self.generator.parameters(),
+            _convert_="partial",
+        )
+        opt_d = hydra.utils.instantiate(
+            self.hparams.optimizer_d,
+            params=self.discriminator.parameters(),
+            _convert_="partial",
+        )
+
+        return (
+            {"optimizer": opt_g, "frequency": 1},
+            {"optimizer": opt_d, "frequency": self.hparams.n_critic},
+        )
+
+    def inverse_transform(self, y: torch.Tensor, last_prices: torch.Tensor) -> np.ndarray:
+        print("INVERSE_TRANSFORM")
+        y_prices = []
+        for i in range(len(last_prices)):
+            y_prices.append(self.pipeline.inverse_transform(y[i].detach().cpu().numpy().T, last_prices[i]).T)
+
+        return np.stack(y_prices)
+
+    def predict(self, batch: Dict[str, torch.Tensor]) -> Dict[str, Union[torch.Tensor, np.ndarray]]:
+        batch_size, _, encoder_length = batch["x"].shape
+        noise = torch.randn(batch_size, 1, encoder_length)
+
+        y_pred = self(batch["x"], noise)
+        last_prices = batch["x_prices"][:, :, -1]
+        y_pred_prices = self.inverse_transform(y_pred, last_prices)
+
+        return_dict = dict(y_pred=y_pred, y_pred_prices=y_pred_prices)
+
+        return return_dict
+
+    def predict_autoregressively(
+        self, batch: Dict[str, torch.Tensor], prediction_length: Optional[int] = None
+    ) -> Dict[str, Union[torch.Tensor, np.ndarray]]:
+        assert batch["x"].shape[0] == 1
+        noise = torch.randn(1, 1, self.hparams.encoder_length)
+        last_prices = batch["x_prices"][:, :, -1]
+
+        if prediction_length is None:
+            prediction_length = self.hparams.decoder_length
+
+        prediction_iterations = math.ceil(prediction_length / self.hparams.decoder_length)
+
+        y_pred = []
+        batch_ = batch.copy()
+        for i in range(prediction_iterations):
+            o = self(batch_["x"], noise)
+            y_pred.append(o)
+
+            batch_["x"] = torch.cat((batch_["x"], o), dim=-1)[..., self.hparams.decoder_length :]
+
+        y_pred = torch.cat(y_pred, dim=-1)[..., :prediction_length]
+        y_pred_prices = self.pipeline.inverse_transform(y_pred[0].detach().cpu().numpy().T, last_prices).T
+
+        return_dict = dict(y_pred=y_pred, y_pred_prices=y_pred_prices)
+
+        return return_dict
 
     def log_sines_gaussian(self, batch: Dict[str, torch.Tensor], y_pred: torch.Tensor, batch_idx: int) -> None:
         history_indexes = np.arange(self.hparams.encoder_length)
