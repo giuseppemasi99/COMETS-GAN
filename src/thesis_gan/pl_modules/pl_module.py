@@ -12,6 +12,7 @@ import torch
 import wandb
 from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
+from scipy import stats
 from torch import nn
 from torch.optim import Optimizer
 
@@ -356,8 +357,13 @@ class MyLightningModule(pl.LightningModule):
         title = f"Volumes - Epoch {self.current_epoch} ({batch_idx})"
         self.logger.experiment.log({title: wandb.Image(fig)})
 
-        means = np.mean(history_and_real, axis=0)
-        metric_names = [f"Real Volume: Mean/{'-'.join(x)}" for x in combinations(self.hparams.stock_names, 2)]
+        self.log_metrics_volume(history_and_real, "Real")
+        self.log_metrics_volume(history_and_real, "Preds")
+
+    def log_metrics_volume(self, ts: np.ndarray, realOpred: str) -> None:
+
+        means = np.mean(ts, axis=0)
+        metric_names = [f"{realOpred} Volume: Mean/{'-'.join(x)}" for x in combinations(self.hparams.stock_names, 2)]
         self.log_dict(
             {metric: mean for metric, mean in zip(metric_names, means)},
             on_step=True,
@@ -365,10 +371,30 @@ class MyLightningModule(pl.LightningModule):
             prog_bar=False,
         )
 
-        means = np.mean(history_and_preds, axis=0)
-        metric_names = [f"Preds Volume: Mean/{'-'.join(x)}" for x in combinations(self.hparams.stock_names, 2)]
+        stds = np.std(ts, axis=0)
+        metric_names = [f"{realOpred} Volume: Std/{'-'.join(x)}" for x in combinations(self.hparams.stock_names, 2)]
         self.log_dict(
-            {metric: mean for metric, mean in zip(metric_names, means)},
+            {metric: std for metric, std in zip(metric_names, stds)},
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
+        )
+
+        vars = np.var(ts, axis=0)
+        metric_names = [
+            f"{realOpred} Volume: Variance/{'-'.join(x)}" for x in combinations(self.hparams.stock_names, 2)
+        ]
+        self.log_dict(
+            {metric: var for metric, var in zip(metric_names, vars)},
+            on_step=True,
+            on_epoch=True,
+            prog_bar=False,
+        )
+
+        entropies = stats.entropy(ts, axis=0)
+        metric_names = [f"{realOpred} Volume: Entropy/{'-'.join(x)}" for x in combinations(self.hparams.stock_names, 2)]
+        self.log_dict(
+            {metric: entropy for metric, entropy in zip(metric_names, entropies)},
             on_step=True,
             on_epoch=True,
             prog_bar=False,
