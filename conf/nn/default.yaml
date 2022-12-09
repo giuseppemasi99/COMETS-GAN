@@ -1,5 +1,6 @@
 dataset_type: "multistock"
-target_feature: close
+target_feature_price: mid_price
+target_feature_volume: volume
 stock_names: [KO, PEP, NVDA, KSU]
 encoder_length: 390
 decoder_length: 150
@@ -10,8 +11,13 @@ data:
 
   dataset_type: ${nn.dataset_type}
 
-  data_pipeline:
+  data_pipeline_price:
     _target_: thesis_gan.data.pipeline.LogReturnPipeline
+    scaler:
+      _target_: sklearn.preprocessing.StandardScaler
+
+  data_pipeline_volume:
+    _target_: thesis_gan.data.pipeline.ScalerPipeline
     scaler:
       _target_: sklearn.preprocessing.StandardScaler
 
@@ -19,7 +25,8 @@ data:
     train:
       _target_: thesis_gan.data.dataset.StockDataset
       path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_train.csv
-      target_feature: ${nn.target_feature}
+      target_feature_price: ${nn.target_feature_price}
+      target_feature_volume: ${nn.target_feature_volume}
       stock_names: ${nn.stock_names}
       encoder_length: 390
       decoder_length: 150
@@ -29,7 +36,8 @@ data:
     val:
       - _target_: thesis_gan.data.dataset.StockDataset
         path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_val.csv
-        target_feature: ${nn.target_feature}
+        target_feature_price: ${nn.target_feature_price}
+        target_feature_volume: ${nn.target_feature_volume}
         stock_names: ${nn.stock_names}
         encoder_length: 390
         decoder_length: 150
@@ -38,7 +46,8 @@ data:
     test:
       - _target_: thesis_gan.data.dataset.StockDataset
         path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_test.csv
-        target_feature: ${nn.target_feature}
+        target_feature_price: ${nn.target_feature_price}
+        target_feature_volume: ${nn.target_feature_volume}
         stock_names: ${nn.stock_names}
         encoder_length: 390
         decoder_length: 150
@@ -70,7 +79,7 @@ module:
     lr: 3e-4
 
   generator:
-    _target_: thesis_gan.modules.generator.cnn.CNNGenerator
+    _target_: thesis_gan.modules.generator.tcn.TCNGenerator
     encoder_length: ${nn.encoder_length}
     decoder_length: ${nn.decoder_length}
     hidden_dim: 256

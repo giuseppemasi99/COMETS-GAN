@@ -25,6 +25,7 @@ class TemporalBlock(nn.Module):
         dropout: float = 0.2,
     ) -> None:
         super(TemporalBlock, self).__init__()
+
         self.conv1 = nn.Conv1d(
             n_inputs, n_outputs, (kernel_size,), stride=(stride,), padding=padding, dilation=(dilation,)
         )

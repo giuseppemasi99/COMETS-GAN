@@ -17,7 +17,7 @@ pylogger = logging.getLogger(__name__)
 
 
 class MetaData:
-    def __init__(self, data_pipeline: Pipeline):
+    def __init__(self, data_pipeline_price: Pipeline, data_pipeline_volume: Pipeline):
         """The data information the Lightning Module will be provided with.
 
         This is a "bridge" between the Lightning DataModule and the Lightning Module.
@@ -37,9 +37,11 @@ class MetaData:
         This is needed for the checkpointing restore to work properly.
 
         Args:
-            data_pipeline: pipeline used to preprocess the data and to inverse transform the outputs of the model.
+            data_pipeline_price: pipeline used to preprocess the prices and to inverse transform the outputs of the model.
+            data_pipeline_volume: pipeline used to preprocess the volumes and to inverse transform the outputs of the model.
         """
-        self.data_pipeline = data_pipeline
+        self.data_pipeline_price = data_pipeline_price
+        self.data_pipeline_volume = data_pipeline_volume
 
     def save(self, dst_path: Path) -> None:
         """Serialize the MetaData attributes into the zipped checkpoint in dst_path.
@@ -49,7 +51,14 @@ class MetaData:
         """
         pylogger.debug(f"Saving MetaData to '{dst_path}'")
         with open(dst_path / "data_pipeline.pickle", "wb") as f:
-            pickle.dump(self.data_pipeline, f, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(
+                {
+                    "data_pipeline_price": self.data_pipeline_price,
+                    "data_pipeline_volume": self.data_pipeline_volume,
+                },
+                f,
+                protocol=pickle.HIGHEST_PROTOCOL,
+            )
 
     @staticmethod
     def load(src_path: Path) -> "MetaData":
@@ -64,18 +73,20 @@ class MetaData:
         pylogger.debug(f"Loading MetaData from '{src_path}'")
 
         with open(src_path / "data_pipeline.pickle", "rb") as f:
-            data_pipeline = pickle.load(f)
+            data_pipelines = pickle.load(f)
 
-        return MetaData(
-            data_pipeline=data_pipeline,
-        )
+        data_pipeline_price = data_pipelines["data_pipeline_price"]
+        data_pipeline_volume = data_pipelines["data_pipeline_volume"]
+
+        return MetaData(data_pipeline_price=data_pipeline_price, data_pipeline_volume=data_pipeline_volume)
 
 
 class MyDataModule(pl.LightningDataModule):
     def __init__(
         self,
         datasets: DictConfig,
-        data_pipeline: DictConfig,
+        data_pipeline_price: DictConfig,
+        data_pipeline_volume: DictConfig,
         num_workers: DictConfig,
         batch_size: DictConfig,
         gpus: Optional[Union[List[int], str, int]],
@@ -83,7 +94,8 @@ class MyDataModule(pl.LightningDataModule):
     ) -> None:
         super().__init__()
         self.datasets = datasets
-        self.data_pipeline = data_pipeline
+        self.data_pipeline_price = data_pipeline_price
+        self.data_pipeline_volume = data_pipeline_volume
         self.num_workers = num_workers
         self.batch_size = batch_size
         self.dataset_type = dataset_type
@@ -106,7 +118,10 @@ class MyDataModule(pl.LightningDataModule):
         if self.train_dataset is None:
             self.setup(stage="fit")
 
-        return MetaData(data_pipeline=self.train_dataset.data_pipeline)
+        return MetaData(
+            data_pipeline_price=self.train_dataset.data_pipeline_price,
+            data_pipeline_volume=self.train_dataset.data_pipeline_volume,
+        )
 
     def prepare_data(self) -> None:
         # download only
@@ -116,14 +131,22 @@ class MyDataModule(pl.LightningDataModule):
         # Here you should instantiate your datasets, you may also split the train into train and validation if needed.
         if (stage is None or stage == "fit") and (self.train_dataset is None and self.val_datasets is None):
             # TODO: should I instantiate the data pipeline here?
-            data_pipeline = hydra.utils.instantiate(self.data_pipeline)
+            data_pipeline_price = hydra.utils.instantiate(self.data_pipeline_price)
+            data_pipeline_volume = hydra.utils.instantiate(self.data_pipeline_volume)
+
             self.train_dataset = hydra.utils.instantiate(
-                self.datasets.train, data_pipeline=data_pipeline, split="train"
+                self.datasets.train,
+                data_pipeline_price=data_pipeline_price,
+                data_pipeline_volume=data_pipeline_volume,
+                split="train",
             )  # , path=PROJECT_ROOT / "data"
             # )
             self.val_datasets = [
                 hydra.utils.instantiate(
-                    dataset_cfg, data_pipeline=data_pipeline, split="val"
+                    dataset_cfg,
+                    data_pipeline_price=data_pipeline_price,
+                    data_pipeline_volume=data_pipeline_volume,
+                    split="val",
                 )  # , path=PROJECT_ROOT / "data"
                 # )
                 for dataset_cfg in self.datasets.val
@@ -172,7 +195,7 @@ class MyDataModule(pl.LightningDataModule):
         return f"{self.__class__.__name__}(" f"{self.datasets=}, " f"{self.num_workers=}, " f"{self.batch_size=})"
 
 
-@hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default")
+@hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default", version_base=None)
 def main(cfg: omegaconf.DictConfig) -> None:
     """Debug main to quickly develop the DataModule.
 
@@ -182,7 +205,8 @@ def main(cfg: omegaconf.DictConfig) -> None:
     # data_pipeline: Pipeline = hydra.utils.instantiate(cfg.nn.data.data_pipeline)
     datamodule: pl.LightningDataModule = hydra.utils.instantiate(cfg.nn.data, _recursive_=False)
     datamodule.setup("fit")
-    print(datamodule.train_dataset.data_pipeline)
+    print(datamodule.train_dataset.data_pipeline_price)
+    print(datamodule.train_dataset.data_pipeline_volume)
     # datamodule.metadata
 
 
