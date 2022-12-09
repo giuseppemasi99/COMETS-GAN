@@ -1,5 +1,4 @@
 from math import factorial
-from typing import Dict
 
 import torch
 from torch import nn
@@ -50,8 +49,7 @@ class CNNDiscriminator(nn.Module):
             corr_features = factorial(n_features) // (2 * factorial(n_features - 2))
             self.linear_corr = spectral_norm(nn.Linear(corr_features, 1), n_power_iterations=10)
 
-    def forward(self, batch: Dict[str, torch.Tensor], y_continuation: torch.Tensor) -> torch.Tensor:
-        x = batch["x"]
+    def forward(self, x: torch.Tensor, y_continuation: torch.Tensor) -> torch.Tensor:
 
         concatenated = torch.cat((x, y_continuation), dim=-1)
 

@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import List
 
 import torch
 import torch.nn as nn
@@ -111,7 +111,6 @@ class TCNGenerator(nn.Module):
         self.tcn = NoisyTemporalConvNet(n_features + 1, [32, 64, 128, 64, 32, 16, n_features], dropout=dropout)
         self.linear_out = nn.Linear(encoder_length, decoder_length)
 
-    def forward(self, batch: Dict[str, torch.Tensor], noise: torch.Tensor):
-        x = batch["x"]
+    def forward(self, x: torch.Tensor, noise: torch.Tensor):
         o = self.tcn(x, noise)
         return self.linear_out(o)
