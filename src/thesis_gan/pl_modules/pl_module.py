@@ -53,7 +53,8 @@ class MyLightningModule(pl.LightningModule):
             _recursive_=False,
         )
 
-        self.pipeline = metadata.data_pipeline
+        self.pipeline_price = metadata.data_pipeline_price
+        self.pipeline_volume = metadata.data_pipeline_volume
 
         self.mse = nn.MSELoss(reduction="none")
 
