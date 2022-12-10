@@ -290,13 +290,18 @@ class MyLightningModule(pl.LightningModule):
         preds = y_pred[0].detach().cpu().numpy().T
 
         history_volumes = volumes[0].detach().cpu().numpy()
-        last_volumes = history_volumes[:, -1]
-
-        real_volumes = self.pipeline_volume.inverse_transform(real, last_volumes).T
-        preds_volumes = self.pipeline_volume.inverse_transform(preds, last_volumes).T
 
         history_and_real = np.concatenate((history, real), axis=0)
         history_and_preds = np.concatenate((history, preds), axis=0)
+
+        real_volumes = self.pipeline_volume.inverse_transform(real)
+        preds_volumes = self.pipeline_volume.inverse_transform(preds)
+
+        history_and_real_volumes = np.concatenate((history_volumes.T, real_volumes), axis=0)
+        history_and_preds_volumes = np.concatenate((history_volumes.T, preds_volumes), axis=0)
+
+        real_volumes = real_volumes.T
+        preds_volumes = preds_volumes.T
 
         fig, ax = plt.subplots(2, self.hparams.n_stocks, figsize=(7 * self.hparams.n_stocks, 10))
         legend_elements = [
@@ -360,7 +365,7 @@ class MyLightningModule(pl.LightningModule):
         stat_names = ["Mean", "Std"]
         stat_funcs = [np.mean, np.std]
         for stat_name, stat_func in zip(stat_names, stat_funcs):
-            self.log_metrics_volume(history_and_real, history_and_preds, stat_name, stat_func)
+            self.log_metrics_volume(history_and_real_volumes, history_and_preds_volumes, stat_name, stat_func)
 
     def log_metrics_volume(
         self,
