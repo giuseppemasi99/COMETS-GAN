@@ -357,8 +357,8 @@ class MyLightningModule(pl.LightningModule):
         self.logger.experiment.log({title: wandb.Image(fig)})
         plt.close(fig)
 
-        stat_names = ["Mean", "Std", "Variance"]
-        stat_funcs = [np.mean, np.std, np.var]
+        stat_names = ["Mean", "Std"]
+        stat_funcs = [np.mean, np.std]
         for stat_name, stat_func in zip(stat_names, stat_funcs):
             self.log_metrics_volume(history_and_real, history_and_preds, stat_name, stat_func)
 
