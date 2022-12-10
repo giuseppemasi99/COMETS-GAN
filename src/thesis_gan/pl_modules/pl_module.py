@@ -1,7 +1,7 @@
 import logging
 import math
 from itertools import combinations
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import hydra
 import numpy as np
@@ -356,49 +356,31 @@ class MyLightningModule(pl.LightningModule):
         fig.tight_layout()
         title = f"Volumes - Epoch {self.current_epoch} ({batch_idx})"
         self.logger.experiment.log({title: wandb.Image(fig)})
+        plt.close(fig)
 
-        self.log_metrics_volume(history_and_real, "Real")
-        self.log_metrics_volume(history_and_real, "Preds")
+        stat_names = ["Mean", "Std", "Variance", "Entropy"]
+        stat_funcs = [np.mean, np.std, np.var, stats.entropy]
+        for stat_name, stat_func in zip(stat_names, stat_funcs):
+            self.log_metrics_volume(history_and_real, history_and_preds, stat_name, stat_func)
 
-    def log_metrics_volume(self, ts: np.ndarray, realOpred: str) -> None:
+    def log_metrics_volume(
+        self,
+        ts_real: np.ndarray,
+        ts_pred: np.ndarray,
+        statistic_name: str,
+        statistical_func: Callable[[np.ndarray], np.ndarray],
+    ) -> None:
+        d = dict()
 
-        means = np.mean(ts, axis=0)
-        metric_names = [f"{realOpred} Volume: Mean/{'-'.join(x)}" for x in combinations(self.hparams.stock_names, 2)]
-        self.log_dict(
-            {metric: mean for metric, mean in zip(metric_names, means)},
-            on_step=True,
-            on_epoch=True,
-            prog_bar=False,
-        )
+        metrics_real = statistical_func(ts_real, axis=0)
+        metric_names = [f"Real Volume: {statistic_name}/{stock_name}" for stock_name in self.hparams.stock_names]
+        d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_real)})
 
-        stds = np.std(ts, axis=0)
-        metric_names = [f"{realOpred} Volume: Std/{'-'.join(x)}" for x in combinations(self.hparams.stock_names, 2)]
-        self.log_dict(
-            {metric: std for metric, std in zip(metric_names, stds)},
-            on_step=True,
-            on_epoch=True,
-            prog_bar=False,
-        )
+        metrics_pred = statistical_func(ts_pred, axis=0)
+        metric_names = [f"Pred Volume: {statistic_name}/{stock_name}" for stock_name in self.hparams.stock_names]
+        d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_pred)})
 
-        vars = np.var(ts, axis=0)
-        metric_names = [
-            f"{realOpred} Volume: Variance/{'-'.join(x)}" for x in combinations(self.hparams.stock_names, 2)
-        ]
-        self.log_dict(
-            {metric: var for metric, var in zip(metric_names, vars)},
-            on_step=True,
-            on_epoch=True,
-            prog_bar=False,
-        )
-
-        entropies = stats.entropy(ts, axis=0)
-        metric_names = [f"{realOpred} Volume: Entropy/{'-'.join(x)}" for x in combinations(self.hparams.stock_names, 2)]
-        self.log_dict(
-            {metric: entropy for metric, entropy in zip(metric_names, entropies)},
-            on_step=True,
-            on_epoch=True,
-            prog_bar=False,
-        )
+        self.log_dict(d, on_step=True, on_epoch=True, prog_bar=False)
 
     def configure_optimizers(self) -> Tuple[Dict[str, Optimizer], Dict[str, Optimizer]]:
         """Choose what optimizers and learning-rate schedulers to use in your optimization.
