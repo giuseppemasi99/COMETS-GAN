@@ -400,7 +400,7 @@ class MyLightningModule(pl.LightningModule):
         metric_names = [f"Pred Volume: Min/{stock_name}" for stock_name in self.hparams.stock_names]
         d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_pred)})
 
-        metrics_real = ts_real.mac(axis=0)
+        metrics_real = ts_real.max(axis=0)
         metric_names = [f"Real Volume: Max/{stock_name}" for stock_name in self.hparams.stock_names]
         d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_real)})
 
