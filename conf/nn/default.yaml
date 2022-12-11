@@ -19,7 +19,7 @@ data:
   data_pipeline_volume:
     _target_: thesis_gan.data.pipeline.ScalerPipeline
     scaler:
-      _target_: sklearn.preprocessing.StandardScaler
+      _target_: sklearn.preprocessing.MinMaxScaler
 
   datasets:
     train:
@@ -56,14 +56,14 @@ data:
   gpus: ${train.trainer.gpus}
 
   num_workers:
-    train: 12
-    val: 12
-    test: 12
+    train: 4
+    val: 4
+    test: 4
 
   batch_size:
-    train: 128
-    val: 128
-    test: 128
+    train: 2
+    val: 2
+    test: 2
 
 module:
   _target_: thesis_gan.pl_modules.pl_module.MyLightningModule

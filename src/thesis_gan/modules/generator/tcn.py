@@ -107,10 +107,25 @@ class TCNGenerator(nn.Module):
         hidden_dim=None,
     ) -> None:
         super(TCNGenerator, self).__init__()
+        self.n_stocks = int(n_features / 2)
 
         self.tcn = NoisyTemporalConvNet(n_features + 1, [32, 64, 128, 64, 32, 16, n_features], dropout=dropout)
         self.linear_out = nn.Linear(encoder_length, decoder_length)
 
+        self.sigmoid = nn.Sigmoid()
+
     def forward(self, x: torch.Tensor, noise: torch.Tensor):
+        # print(x.shape)
+        # x.shape = [batch_size, num_features, encoder_length]
+
         o = self.tcn(x, noise)
-        return self.linear_out(o)
+        o = self.linear_out(o)
+        # o.shape = [batch_size, num_features, decoder_length]
+
+        o_price, o_volume = o[:, : self.n_stocks, :], o[:, self.n_stocks :, :]
+        o_volume = self.sigmoid(o_volume)
+
+        o = torch.concatenate((o_price, o_volume), dim=1)
+        # o.shape = [batch_size, num_features, decoder_length]
+
+        return o
