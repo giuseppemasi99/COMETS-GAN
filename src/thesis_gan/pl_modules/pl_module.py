@@ -12,6 +12,7 @@ import torch
 import wandb
 from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
+from scipy import stats
 from torch import nn
 from torch.optim import Optimizer
 
@@ -362,8 +363,10 @@ class MyLightningModule(pl.LightningModule):
         self.logger.experiment.log({title: wandb.Image(fig)})
         plt.close(fig)
 
-        stat_names = ["Mean", "Std"]
-        stat_funcs = [np.mean, np.std]
+        self.log_multistock_minmax_volumes(history_and_real_volumes, history_and_preds_volumes)
+
+        stat_names = ["Mean", "Std", "Kurtosis", "Skew"]
+        stat_funcs = [np.mean, np.std, stats.kurtosis, stats.skew]
         for stat_name, stat_func in zip(stat_names, stat_funcs):
             self.log_metrics_volume(history_and_real_volumes, history_and_preds_volumes, stat_name, stat_func)
 
@@ -382,6 +385,27 @@ class MyLightningModule(pl.LightningModule):
 
         metrics_pred = statistical_func(ts_pred, axis=0)
         metric_names = [f"Pred Volume: {statistic_name}/{stock_name}" for stock_name in self.hparams.stock_names]
+        d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_pred)})
+
+        self.log_dict(d, on_step=True, on_epoch=True, prog_bar=False)
+
+    def log_multistock_minmax_volumes(self, ts_real: np.ndarray, ts_pred: np.ndarray) -> None:
+        d = dict()
+
+        metrics_real = ts_real.min(axis=0)
+        metric_names = [f"Real Volume: Min/{stock_name}" for stock_name in self.hparams.stock_names]
+        d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_real)})
+
+        metrics_pred = ts_pred.min(axis=0)
+        metric_names = [f"Pred Volume: Min/{stock_name}" for stock_name in self.hparams.stock_names]
+        d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_pred)})
+
+        metrics_real = ts_real.mac(axis=0)
+        metric_names = [f"Real Volume: Max/{stock_name}" for stock_name in self.hparams.stock_names]
+        d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_real)})
+
+        metrics_pred = ts_pred.max(axis=0)
+        metric_names = [f"Pred Volume: Max/{stock_name}" for stock_name in self.hparams.stock_names]
         d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_pred)})
 
         self.log_dict(d, on_step=True, on_epoch=True, prog_bar=False)
