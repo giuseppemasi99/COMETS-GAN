@@ -1,5 +1,5 @@
 dataset_type: "multistock"
-target_feature_price: mid_price
+target_feature_price: close
 target_feature_volume: volume
 stock_names: [KO, PEP, NVDA, KSU]
 encoder_length: 390
@@ -61,9 +61,9 @@ data:
     test: 4
 
   batch_size:
-    train: 2
-    val: 2
-    test: 2
+    train: 128
+    val: 128
+    test: 128
 
 module:
   _target_: thesis_gan.pl_modules.pl_module.MyLightningModule
