@@ -1,7 +1,7 @@
 import logging
 import math
 from itertools import combinations
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import hydra
 import numpy as np
@@ -102,29 +102,29 @@ class MyLightningModule(pl.LightningModule):
             self.log_dict({"loss/disc": d_loss}, on_step=True, on_epoch=True, prog_bar=True)
             return d_loss
 
-    def validation_step(self, batch: Any, batch_idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        return (batch["sequence"], batch["prices"], batch["volumes"])
+    # def validation_step(self, batch: Any, batch_idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    #     return (batch["sequence"], batch["prices"], batch["volumes"])
 
-    def validation_epoch_end(self, samples: Sequence[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]) -> None:
-        sequence, prices, volumes = list(), list(), list()
-        for sequence_, prices_, volumes_ in samples:
-            sequence.append(sequence_)
-            prices.append(prices_)
-            volumes.append(volumes_)
-        sequence = torch.concatenate(sequence, dim=2)
-        prices = torch.concatenate(prices, dim=2)
-        volumes = torch.concatenate(volumes, dim=2)
-        pred_sequence, pred_prices, pred_volumes = self.predict_autoregressively(
-            sequence, prices, volumes, prediction_length=sequence.shape[2] - self.hparams.encoder_length
-        )
+    # def validation_epoch_end(self, samples: Sequence[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]) -> None:
+    #     sequence, prices, volumes = list(), list(), list()
+    #     for sequence_, prices_, volumes_ in samples:
+    #         sequence.append(sequence_)
+    #         prices.append(prices_)
+    #         volumes.append(volumes_)
+    #     sequence = torch.concatenate(sequence, dim=2)
+    #     prices = torch.concatenate(prices, dim=2)
+    #     volumes = torch.concatenate(volumes, dim=2)
+    #     pred_sequence, pred_prices, pred_volumes = self.predict_autoregressively(
+    #         sequence, prices, volumes, prediction_length=sequence.shape[2] - self.hparams.encoder_length
+    #     )
 
-        print(pred_sequence.shape)
-        print(pred_prices.shape)
-        print(pred_volumes.shape)
+    #     print(pred_sequence.shape)
+    #     print(pred_prices.shape)
+    #     print(pred_volumes.shape)
 
-        # TODO: evaluate the quality of the synthetic data
-        # verificare correlations
-        # verificare log_multistock_prices, log_multistock_volumes, log_metrics_volume, log_multistock_minmax_volumes
+    # TODO: evaluate the quality of the synthetic data
+    # verificare correlations
+    # verificare log_multistock_prices, log_multistock_volumes, log_metrics_volume, log_multistock_minmax_volumes
 
     def predict_autoregressively(
         self,
@@ -484,20 +484,20 @@ class MyLightningModule(pl.LightningModule):
             {"optimizer": opt_d, "frequency": self.hparams.n_critic},
         )
 
-    # def old_validation_step(self, batch: Any, batch_idx: int) -> None:
-    #     if batch_idx % self.hparams.val_log_freq == 0:
-    #         noise = torch.randn(batch["x"].shape[0], 1, self.hparams.encoder_length, device=self.device)
-    #         fake = self(batch["x"], noise)
-    #         if self.hparams.dataset_type == "multistock":
-    #             x, y = batch["x"], batch["y"]
-    #             x_prices, x_volumes = x[:, : self.hparams.n_stocks, :], x[:, self.hparams.n_stocks:, :]
-    #             y_prices, y_volumes = y[:, : self.hparams.n_stocks, :], y[:, self.hparams.n_stocks:, :]
-    #             prices, volumes = batch["x_prices"], batch["x_volumes"]
-    #             fake_prices, fake_volumes = fake[:, :self.hparams.n_stocks, :], fake[:, self.hparams.n_stock:, :]
-    #             self.log_multistock_prices(x_prices, y_prices, prices, fake_prices, batch_idx)
-    #             self.log_multistock_volumes(x_volumes, y_volumes, volumes, fake_volumes, batch_idx)
-    #         elif self.hparams.dataset_type == "sines" or self.hparams.dataset_type == "gaussian":
-    #             self.log_sines_gaussian(batch, fake, batch_idx)
+    def validation_step(self, batch: Any, batch_idx: int) -> None:
+        if batch_idx % self.hparams.val_log_freq == 0:
+            noise = torch.randn(batch["x"].shape[0], 1, self.hparams.encoder_length, device=self.device)
+            fake = self(batch["x"], noise)
+            if self.hparams.dataset_type == "multistock":
+                x, y = batch["x"], batch["y"]
+                x_prices, x_volumes = x[:, : self.hparams.n_stocks, :], x[:, self.hparams.n_stocks :, :]
+                y_prices, y_volumes = y[:, : self.hparams.n_stocks, :], y[:, self.hparams.n_stocks :, :]
+                prices, volumes = batch["x_prices"], batch["x_volumes"]
+                fake_prices, fake_volumes = fake[:, : self.hparams.n_stocks, :], fake[:, self.hparams.n_stocks :, :]
+                self.log_multistock_prices(x_prices, y_prices, prices, fake_prices, batch_idx)
+                self.log_multistock_volumes(x_volumes, y_volumes, volumes, fake_volumes, batch_idx)
+            elif self.hparams.dataset_type == "sines" or self.hparams.dataset_type == "gaussian":
+                self.log_sines_gaussian(batch, fake, batch_idx)
 
     def inverse_transform(self, y: torch.Tensor, last_prices: torch.Tensor) -> np.ndarray:
         y_prices = []

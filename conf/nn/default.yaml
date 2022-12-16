@@ -20,6 +20,7 @@ data:
     _target_: thesis_gan.data.pipeline.ScalerPipeline
     scaler:
       _target_: sklearn.preprocessing.MinMaxScaler
+      feature_range: [-1, 1]
 
   datasets:
     train:
@@ -34,22 +35,24 @@ data:
 
 
     val:
-      - _target_: thesis_gan.data.datasetinference.StockDatasetInference
+      - _target_: thesis_gan.data.dataset.StockDataset
         path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_val.csv
         target_feature_price: ${nn.target_feature_price}
         target_feature_volume: ${nn.target_feature_volume}
         stock_names: ${nn.stock_names}
         encoder_length: 390
         decoder_length: 150
+        stride: 1
 
     test:
-      - _target_: thesis_gan.data.datasetinference.StockDatasetInference
+      - _target_: thesis_gan.data.dataset.StockDataset
         path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_test.csv
         target_feature_price: ${nn.target_feature_price}
         target_feature_volume: ${nn.target_feature_volume}
         stock_names: ${nn.stock_names}
         encoder_length: 390
         decoder_length: 150
+        stride: 1
 
   gpus: ${train.trainer.gpus}
 
@@ -60,8 +63,8 @@ data:
 
   batch_size:
     train: 128
-    val: 1
-    test: 1
+    val: 128
+    test: 128
 
 module:
   _target_: thesis_gan.pl_modules.pl_module.MyLightningModule
