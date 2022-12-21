@@ -43,7 +43,7 @@ class StockDatasetInference(Dataset):
         data_volume = data_pipeline_volume.preprocess(self.df, targets_volume)
         self.data = np.concatenate((data_price, data_volume), axis=1)
 
-        # Keep non preprocessed prices
+        # Keep non preprocessed data
         self.prices = self.df[targets_price].to_numpy()
         self.volumes = self.df[targets_volume].to_numpy()
 
