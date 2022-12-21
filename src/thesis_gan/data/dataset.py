@@ -24,6 +24,7 @@ class StockDataset(Dataset):
         encoder_length: int,
         decoder_length: int,
         stride: int,
+        fool_scaler: bool,
         data_pipeline_price: Pipeline,
         data_pipeline_volume: Pipeline,
         split: Split,
@@ -33,6 +34,7 @@ class StockDataset(Dataset):
         self.encoder_length = encoder_length
         self.decoder_length = decoder_length
         self.stride = stride
+        self.fool_scaler = fool_scaler
         self.data_pipeline_price = data_pipeline_price
         self.data_pipeline_volume = data_pipeline_volume
         self.split = split
@@ -40,12 +42,20 @@ class StockDataset(Dataset):
         targets_price = [f"{target_feature_price}_{stock}" for stock in stock_names]
         targets_volume = [f"{target_feature_volume}_{stock}" for stock in stock_names]
 
-        # Preprocess dataset targets
+        # Pre-processing prices
         data_price = data_pipeline_price.preprocess(self.df, targets_price)
+
+        # Pre-processing volumes
+        if self.fool_scaler:
+            self.df = self.df.append(2 * self.df.max(), ignore_index=True)
         data_volume = data_pipeline_volume.preprocess(self.df, targets_volume)
+        if self.fool_scaler:
+            data_volume = data_volume[:-1]
+            self.df.drop(self.df.tail(1).index, inplace=True)
+
         self.data = np.concatenate((data_price, data_volume), axis=1)
 
-        # Keep non preprocessed prices
+        # Keep non preprocessed data
         self.prices = self.df[targets_price].to_numpy()
         self.volumes = self.df[targets_volume].to_numpy()
 
