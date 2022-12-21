@@ -30,9 +30,10 @@ class Pipeline:
 
 
 class ScalerPipeline(Pipeline):
-    def __init__(self, scaler: Union[MinMaxScaler, StandardScaler]) -> None:
+    def __init__(self, scaler: Union[MinMaxScaler, StandardScaler], round: bool) -> None:
         super(ScalerPipeline, self).__init__()
         self.scaler = scaler
+        self.round = round
 
     def preprocess(self, df: pd.DataFrame, targets: List[str]) -> np.ndarray:
         df_targets = df[targets]
@@ -43,7 +44,10 @@ class ScalerPipeline(Pipeline):
         return self.scaler.transform(df_targets)
 
     def inverse_transform(self, x: np.ndarray, x_last: Optional[np.ndarray] = None) -> np.ndarray:
-        return self.scaler.inverse_transform(x)
+        inv = self.scaler.inverse_transform(x)
+        if self.round:
+            inv = np.rint(inv)
+        return inv
 
 
 class ReturnPipeline(Pipeline):

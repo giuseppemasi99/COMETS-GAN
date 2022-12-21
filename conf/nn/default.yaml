@@ -21,6 +21,7 @@ data:
     scaler:
       _target_: sklearn.preprocessing.MinMaxScaler
       feature_range: [-1, 1]
+    round: True
 
   datasets:
     train:
@@ -32,7 +33,7 @@ data:
       encoder_length: 390
       decoder_length: 150
       stride: 1
-
+      fool_scaler: True
 
     val:
       - _target_: thesis_gan.data.dataset.StockDataset
@@ -43,6 +44,7 @@ data:
         encoder_length: 390
         decoder_length: 150
         stride: 1
+        fool_scaler: True
 
     test:
       - _target_: thesis_gan.data.dataset.StockDataset
@@ -53,6 +55,7 @@ data:
         encoder_length: 390
         decoder_length: 150
         stride: 1
+        fool_scaler: True
 
   gpus: ${train.trainer.gpus}
 
