@@ -21,6 +21,8 @@ data:
     scaler:
       _target_: sklearn.preprocessing.MinMaxScaler
       feature_range: [-1, 1]
+    round: True
+    log: True
 
   datasets:
     train:
