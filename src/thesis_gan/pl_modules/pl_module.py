@@ -1,7 +1,7 @@
 import logging
 import math
 from itertools import combinations
-from typing import Any, Callable, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import hydra
 import numpy as np
@@ -85,11 +85,11 @@ class MyLightningModule(pl.LightningModule):
             # x.shape [batch_size, num_features, encoder_length]
             # noise.shape = [batch_size, 1, encoder_length]
             y_pred = self(x, noise)
-            g_loss = -torch.mean(self.discriminator(x, y_pred))  # + loss_for_negative_values
+            g_loss = -torch.mean(self.discriminator(x, y_pred))
             self.log_dict({"loss/gen": g_loss}, on_step=True, on_epoch=True, prog_bar=True)
             if self.hparams.dataset_type == "multistock":
-                self.log_correlation(y_real, "real")
-                self.log_correlation(y_pred, "pred")
+                # self.log_correlation(y_real, "real")
+                # self.log_correlation(y_pred, "pred")
                 self.log_correlation_distance(y_real, y_pred)
             return g_loss
 
@@ -102,29 +102,44 @@ class MyLightningModule(pl.LightningModule):
             self.log_dict({"loss/disc": d_loss}, on_step=True, on_epoch=True, prog_bar=True)
             return d_loss
 
-    # def validation_step(self, batch: Any, batch_idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    #     return (batch["sequence"], batch["prices"], batch["volumes"])
+    def validation_step(self, batch: Any, batch_idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        return (batch["sequence"], batch["prices"], batch["volumes"])
 
-    # def validation_epoch_end(self, samples: Sequence[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]) -> None:
-    #     sequence, prices, volumes = list(), list(), list()
-    #     for sequence_, prices_, volumes_ in samples:
-    #         sequence.append(sequence_)
-    #         prices.append(prices_)
-    #         volumes.append(volumes_)
-    #     sequence = torch.concatenate(sequence, dim=2)
-    #     prices = torch.concatenate(prices, dim=2)
-    #     volumes = torch.concatenate(volumes, dim=2)
-    #     pred_sequence, pred_prices, pred_volumes = self.predict_autoregressively(
-    #         sequence, prices, volumes, prediction_length=sequence.shape[2] - self.hparams.encoder_length
-    #     )
+    def validation_epoch_end(self, samples: Sequence[Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]) -> None:
+        sequence, prices, volumes = list(), list(), list()
+        for sequence_, prices_, volumes_ in samples:
+            sequence.append(sequence_)
+            prices.append(prices_)
+            volumes.append(volumes_)
 
-    #     print(pred_sequence.shape)
-    #     print(pred_prices.shape)
-    #     print(pred_volumes.shape)
+        sequence = torch.concatenate(sequence, dim=2)
+        prices = torch.concatenate(prices, dim=2)
+        volumes = torch.concatenate(volumes, dim=2)
+        pred_sequence, pred_prices, pred_volumes = self.predict_autoregressively(
+            sequence, prices, volumes, prediction_length=sequence.shape[2] - self.hparams.encoder_length
+        )
 
-    # TODO: evaluate the quality of the synthetic data
-    # verificare correlations
-    # verificare log_multistock_prices, log_multistock_volumes, log_metrics_volume, log_multistock_minmax_volumes
+        self.log_correlation(sequence, "real")
+        self.log_correlation(pred_sequence, "pred")
+
+        pred_sequence = pred_sequence.squeeze().cpu()
+        pred_prices = pred_prices.squeeze().cpu()
+        pred_volumes = pred_volumes.squeeze().cpu()
+        sequence = sequence.squeeze().cpu()
+        prices = prices.squeeze().cpu()
+        volumes = volumes.squeeze().cpu()
+
+        # pred_sequence.shape = [8, 4290]
+        # pred_prices.shape = [4, 4290]
+        # pred_volumes.shape = [4, 4290]
+        # prices.shape = [4, 4290]
+        # volumes.shape = [4, 4290]
+
+        self.log_multistock_prices(sequence[:4], pred_sequence[:4], pred_prices, prices)
+        self.log_multistock_volumes(sequence[4:], pred_sequence[4:], pred_volumes, volumes)
+
+        self.log_metrics_volume(volumes.numpy(), pred_volumes.numpy())
+        self.log_multistock_minmax_volumes(volumes.numpy(), pred_volumes.numpy())
 
     def predict_autoregressively(
         self,
@@ -156,7 +171,7 @@ class MyLightningModule(pl.LightningModule):
             pred_sequence[0, self.hparams.n_stocks :, :].T, last_volume
         ).T
 
-        return pred_sequence, pred_prices, pred_volumes
+        return torch.Tensor(pred_sequence), torch.Tensor(pred_prices), torch.Tensor(pred_volumes)
 
     def log_correlation(self, y_realOpred: torch.Tensor, realOpred: str) -> None:
         correlation = corr(y_realOpred)
@@ -176,7 +191,7 @@ class MyLightningModule(pl.LightningModule):
 
         self.log_dict(
             {metric: avg_correlation.item() for metric, avg_correlation in zip(metric_names, avg_correlations)},
-            on_step=True,
+            on_step=False,
             on_epoch=True,
             prog_bar=False,
         )
@@ -206,26 +221,21 @@ class MyLightningModule(pl.LightningModule):
         )
 
     def log_multistock_prices(
-        self, x: torch.Tensor, y: torch.Tensor, prices: torch.Tensor, y_pred: torch.Tensor, batch_idx: int
+        self, sequence: torch.Tensor, pred_sequence: torch.Tensor, pred_prices: torch.Tensor, prices: torch.Tensor
     ) -> None:
 
+        # sequence.shape = [4, 4290]
+        # pred_sequence.shape = [4, 4290]
+        # prices.shape = [4, 4290]
+        # pred_prices.shape = [4, 4290]
+
         history_indexes = np.arange(self.hparams.encoder_length)
-        continuation_indexes = np.arange(
-            self.hparams.encoder_length,
-            self.hparams.encoder_length + self.hparams.decoder_length,
-        )
+        continuation_indexes = np.arange(self.hparams.encoder_length, prices.shape[-1])
 
-        history = x[0].detach().cpu().numpy().T
-        real = y[0].detach().cpu().numpy().T
-        preds = y_pred[0].detach().cpu().numpy().T
-
-        history_prices = prices[0].detach().cpu().numpy()
-        last_prices = history_prices[:, -1]
-
-        real_prices = self.pipeline_price.inverse_transform(real, last_prices).T
-        preds_prices = self.pipeline_price.inverse_transform(preds, last_prices).T
-
-        history_and_real = np.concatenate((history, real), axis=0)
+        history = sequence[:, : self.hparams.encoder_length].T
+        reals = sequence[:, self.hparams.encoder_length :].T
+        preds = pred_sequence[:, self.hparams.encoder_length :].T
+        history_and_reals = np.concatenate((history, reals), axis=0)
         history_and_preds = np.concatenate((history, preds), axis=0)
 
         fig, ax = plt.subplots(4, self.hparams.n_stocks, figsize=(7 * self.hparams.n_stocks, 10))
@@ -244,17 +254,17 @@ class MyLightningModule(pl.LightningModule):
 
             ax[0, target_idx].plot(
                 history_indexes,
-                history_prices[target_idx],
+                prices[target_idx, : self.hparams.encoder_length],
                 color="C0",
             )
             ax[0, target_idx].plot(
                 continuation_indexes,
-                real_prices[target_idx],
+                prices[target_idx, self.hparams.encoder_length :],
                 color="C1",
             )
             ax[0, target_idx].plot(
                 continuation_indexes,
-                preds_prices[target_idx],
+                pred_prices[target_idx, self.hparams.encoder_length :],
                 color="C2",
             )
 
@@ -263,7 +273,7 @@ class MyLightningModule(pl.LightningModule):
             ax[1, target_idx].set_title(title)
 
             sns.histplot(
-                real[:, target_idx],
+                reals[:, target_idx],
                 color="C1",
                 kde=True,
                 stat="density",
@@ -283,7 +293,7 @@ class MyLightningModule(pl.LightningModule):
             title = f"{stock_name} - Autocorrelation"
             ax[2, target_idx].set_title(title)
 
-            autocorr_real = autocorrelation(history_and_real[:, target_idx])
+            autocorr_real = autocorrelation(history_and_reals[:, target_idx])
             autocorr_preds = autocorrelation(history_and_preds[:, target_idx])
             sns.histplot(
                 autocorr_real,
@@ -306,7 +316,7 @@ class MyLightningModule(pl.LightningModule):
             title = f"{stock_name} - Volatility clustering"
             ax[3, target_idx].set_title(title)
 
-            abs_autocorr_real = autocorrelation(np.abs(history_and_real[:, target_idx]))
+            abs_autocorr_real = autocorrelation(np.abs(history_and_reals[:, target_idx]))
             abs_autocorr_preds = autocorrelation(np.abs(history_and_preds[:, target_idx]))
 
             ax[3, target_idx].plot(np.zeros(len(abs_autocorr_real)), color="black")
@@ -315,37 +325,23 @@ class MyLightningModule(pl.LightningModule):
 
         fig.legend(handles=legend_elements, loc="upper right", ncol=1)
         fig.tight_layout()
-        title = f"Prices - Epoch {self.current_epoch} ({batch_idx})"
+        title = f"Prices - Epoch {self.current_epoch}"
         self.logger.experiment.log({title: wandb.Image(fig)})
 
         plt.close(fig)
 
     def log_multistock_volumes(
-        self, x: torch.Tensor, y: torch.Tensor, volumes: torch.Tensor, y_pred: torch.Tensor, batch_idx: int
+        self, sequence: torch.Tensor, pred_sequence: torch.Tensor, pred_volumes: torch.Tensor, volumes: torch.Tensor
     ) -> None:
+
         history_indexes = np.arange(self.hparams.encoder_length)
-        continuation_indexes = np.arange(
-            self.hparams.encoder_length,
-            self.hparams.encoder_length + self.hparams.decoder_length,
-        )
+        continuation_indexes = np.arange(self.hparams.encoder_length, volumes.shape[-1])
 
-        history = x[0].detach().cpu().numpy().T
-        real = y[0].detach().cpu().numpy().T
-        preds = y_pred[0].detach().cpu().numpy().T
-
-        history_volumes = volumes[0].detach().cpu().numpy()
-
-        history_and_real = np.concatenate((history, real), axis=0)
+        history = sequence[:, : self.hparams.encoder_length].T
+        reals = sequence[:, self.hparams.encoder_length :].T
+        preds = pred_sequence[:, self.hparams.encoder_length :].T
+        history_and_reals = np.concatenate((history, reals), axis=0)
         history_and_preds = np.concatenate((history, preds), axis=0)
-
-        real_volumes = self.pipeline_volume.inverse_transform(real)
-        preds_volumes = self.pipeline_volume.inverse_transform(preds)
-
-        history_and_real_volumes = np.concatenate((history_volumes.T, real_volumes), axis=0)
-        history_and_preds_volumes = np.concatenate((history_volumes.T, preds_volumes), axis=0)
-
-        real_volumes = real_volumes.T
-        preds_volumes = preds_volumes.T
 
         fig, ax = plt.subplots(2, self.hparams.n_stocks, figsize=(7 * self.hparams.n_stocks, 10))
         legend_elements = [
@@ -363,17 +359,17 @@ class MyLightningModule(pl.LightningModule):
 
             ax[0, target_idx].plot(
                 history_indexes,
-                history_volumes[target_idx],
+                volumes[target_idx, : self.hparams.encoder_length],
                 color="C0",
             )
             ax[0, target_idx].plot(
                 continuation_indexes,
-                real_volumes[target_idx],
+                volumes[target_idx, self.hparams.encoder_length :],
                 color="C1",
             )
             ax[0, target_idx].plot(
                 continuation_indexes,
-                preds_volumes[target_idx],
+                pred_volumes[target_idx, self.hparams.encoder_length :],
                 color="C2",
             )
 
@@ -381,7 +377,7 @@ class MyLightningModule(pl.LightningModule):
             title = f"{stock_name} - Autocorrelation"
             ax[1, target_idx].set_title(title)
 
-            autocorr_real = autocorrelation(history_and_real[:, target_idx])
+            autocorr_real = autocorrelation(history_and_reals[:, target_idx])
             autocorr_preds = autocorrelation(history_and_preds[:, target_idx])
             sns.histplot(
                 autocorr_real,
@@ -402,56 +398,49 @@ class MyLightningModule(pl.LightningModule):
 
         fig.legend(handles=legend_elements, loc="upper right", ncol=1)
         fig.tight_layout()
-        title = f"Volumes - Epoch {self.current_epoch} ({batch_idx})"
+        title = f"Volumes - Epoch {self.current_epoch}"
         self.logger.experiment.log({title: wandb.Image(fig)})
+
         plt.close(fig)
 
-        self.log_multistock_minmax_volumes(history_and_real_volumes, history_and_preds_volumes)
+    def log_metrics_volume(self, ts_real: np.ndarray, ts_pred: np.ndarray) -> None:
 
         stat_names = ["Mean", "Std", "Kurtosis", "Skew"]
         stat_funcs = [np.mean, np.std, stats.kurtosis, stats.skew]
+
         for stat_name, stat_func in zip(stat_names, stat_funcs):
-            self.log_metrics_volume(history_and_real_volumes, history_and_preds_volumes, stat_name, stat_func)
+            d = dict()
 
-    def log_metrics_volume(
-        self,
-        ts_real: np.ndarray,
-        ts_pred: np.ndarray,
-        statistic_name: str,
-        statistical_func: Callable[[np.ndarray], np.ndarray],
-    ) -> None:
-        d = dict()
+            metrics_real = stat_func(ts_real, axis=1)
+            metric_names = [f"Real Volume: {stat_name}/{stock_name}" for stock_name in self.hparams.stock_names]
+            d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_real)})
 
-        metrics_real = statistical_func(ts_real, axis=0)
-        metric_names = [f"Real Volume: {statistic_name}/{stock_name}" for stock_name in self.hparams.stock_names]
-        d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_real)})
+            metrics_pred = stat_func(ts_pred, axis=1)
+            metric_names = [f"Pred Volume: {stat_name}/{stock_name}" for stock_name in self.hparams.stock_names]
+            d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_pred)})
 
-        metrics_pred = statistical_func(ts_pred, axis=0)
-        metric_names = [f"Pred Volume: {statistic_name}/{stock_name}" for stock_name in self.hparams.stock_names]
-        d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_pred)})
-
-        self.log_dict(d, on_step=True, on_epoch=True, prog_bar=False)
+            self.log_dict(d, on_step=False, on_epoch=True, prog_bar=False)
 
     def log_multistock_minmax_volumes(self, ts_real: np.ndarray, ts_pred: np.ndarray) -> None:
         d = dict()
 
-        metrics_real = ts_real.min(axis=0)
+        metrics_real = ts_real.min(axis=1)
         metric_names = [f"Real Volume: Min/{stock_name}" for stock_name in self.hparams.stock_names]
         d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_real)})
 
-        metrics_pred = ts_pred.min(axis=0)
+        metrics_pred = ts_pred.min(axis=1)
         metric_names = [f"Pred Volume: Min/{stock_name}" for stock_name in self.hparams.stock_names]
         d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_pred)})
 
-        metrics_real = ts_real.max(axis=0)
+        metrics_real = ts_real.max(axis=1)
         metric_names = [f"Real Volume: Max/{stock_name}" for stock_name in self.hparams.stock_names]
         d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_real)})
 
-        metrics_pred = ts_pred.max(axis=0)
+        metrics_pred = ts_pred.max(axis=1)
         metric_names = [f"Pred Volume: Max/{stock_name}" for stock_name in self.hparams.stock_names]
         d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_pred)})
 
-        self.log_dict(d, on_step=True, on_epoch=True, prog_bar=False)
+        self.log_dict(d, on_step=False, on_epoch=True, prog_bar=False)
 
     def configure_optimizers(self) -> Tuple[Dict[str, Optimizer], Dict[str, Optimizer]]:
         """Choose what optimizers and learning-rate schedulers to use in your optimization.
@@ -484,20 +473,20 @@ class MyLightningModule(pl.LightningModule):
             {"optimizer": opt_d, "frequency": self.hparams.n_critic},
         )
 
-    def validation_step(self, batch: Any, batch_idx: int) -> None:
-        if batch_idx % self.hparams.val_log_freq == 0:
-            noise = torch.randn(batch["x"].shape[0], 1, self.hparams.encoder_length, device=self.device)
-            fake = self(batch["x"], noise)
-            if self.hparams.dataset_type == "multistock":
-                x, y = batch["x"], batch["y"]
-                x_prices, x_volumes = x[:, : self.hparams.n_stocks, :], x[:, self.hparams.n_stocks :, :]
-                y_prices, y_volumes = y[:, : self.hparams.n_stocks, :], y[:, self.hparams.n_stocks :, :]
-                prices, volumes = batch["x_prices"], batch["x_volumes"]
-                fake_prices, fake_volumes = fake[:, : self.hparams.n_stocks, :], fake[:, self.hparams.n_stocks :, :]
-                self.log_multistock_prices(x_prices, y_prices, prices, fake_prices, batch_idx)
-                self.log_multistock_volumes(x_volumes, y_volumes, volumes, fake_volumes, batch_idx)
-            elif self.hparams.dataset_type == "sines" or self.hparams.dataset_type == "gaussian":
-                self.log_sines_gaussian(batch, fake, batch_idx)
+    # def validation_step(self, batch: Any, batch_idx: int) -> None:
+    #     if batch_idx % self.hparams.val_log_freq == 0:
+    #         noise = torch.randn(batch["x"].shape[0], 1, self.hparams.encoder_length, device=self.device)
+    #         fake = self(batch["x"], noise)
+    #         if self.hparams.dataset_type == "multistock":
+    #             x, y = batch["x"], batch["y"]
+    #             x_prices, x_volumes = x[:, : self.hparams.n_stocks, :], x[:, self.hparams.n_stocks :, :]
+    #             y_prices, y_volumes = y[:, : self.hparams.n_stocks, :], y[:, self.hparams.n_stocks :, :]
+    #             prices, volumes = batch["x_prices"], batch["x_volumes"]
+    #             fake_prices, fake_volumes = fake[:, : self.hparams.n_stocks, :], fake[:, self.hparams.n_stocks :, :]
+    #             self.log_multistock_prices(x_prices, y_prices, prices, fake_prices, batch_idx)
+    #             self.log_multistock_volumes(x_volumes, y_volumes, volumes, fake_volumes, batch_idx)
+    #         elif self.hparams.dataset_type == "sines" or self.hparams.dataset_type == "gaussian":
+    #             self.log_sines_gaussian(batch, fake, batch_idx)
 
     def inverse_transform(self, y: torch.Tensor, last_prices: torch.Tensor) -> np.ndarray:
         y_prices = []
