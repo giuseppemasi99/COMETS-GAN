@@ -148,18 +148,18 @@ class MyLightningModule(pl.LightningModule):
         volumes: torch.Tensor,
         prediction_length: Optional[int] = None,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        noise = torch.randn(1, 1, self.hparams.encoder_length, device=self.device)
-        last_price = prices[:, :, 390].detach().cpu()
-        last_volume = volumes[:, :, 390].detach().cpu()
+        last_price = prices[:, :, self.hparams.encoder_length].detach().cpu()
+        last_volume = volumes[:, :, self.hparams.encoder_length].detach().cpu()
 
         if prediction_length is None:
             prediction_length = self.hparams.decoder_length
 
         prediction_iterations = math.ceil(prediction_length / self.hparams.decoder_length)
 
-        pred_sequence = sequence[:, :, :390]
+        pred_sequence = sequence[:, :, : self.hparams.encoder_length]
         for i in range(prediction_iterations):
-            o = self(pred_sequence[:, :, -390:], noise)
+            noise = torch.randn(1, 1, self.hparams.encoder_length, device=self.device)
+            o = self(pred_sequence[:, :, -self.hparams.encoder_length :], noise)
             pred_sequence = torch.concatenate((pred_sequence, o), dim=2)
 
         pred_sequence = pred_sequence.detach().cpu().numpy()
