@@ -29,6 +29,8 @@ class StockDatasetInference(Dataset):
     ) -> None:
         super().__init__()
         self.df = pd.read_csv(path)
+        self.target_feature_price = target_feature_price
+        self.target_feature_volume = target_feature_volume
         self.encoder_length = encoder_length
         self.decoder_length = decoder_length
         self.data_pipeline_price = data_pipeline_price
@@ -36,16 +38,16 @@ class StockDatasetInference(Dataset):
         self.split = split
 
         targets_price = [f"{target_feature_price}_{stock}" for stock in stock_names]
-        targets_volume = [f"{target_feature_volume}_{stock}" for stock in stock_names]
-
-        # Preprocess dataset targets
         data_price = data_pipeline_price.preprocess(self.df, targets_price)
-        data_volume = data_pipeline_volume.preprocess(self.df, targets_volume)
-        self.data = np.concatenate((data_price, data_volume), axis=1)
-
-        # Keep non preprocessed data
         self.prices = self.df[targets_price].to_numpy()
-        self.volumes = self.df[targets_volume].to_numpy()
+
+        if target_feature_volume is not None:
+            targets_volume = [f"{target_feature_volume}_{stock}" for stock in stock_names]
+            data_volume = data_pipeline_volume.preprocess(self.df, targets_volume)
+            self.volumes = self.df[targets_volume].to_numpy()
+            self.data = np.concatenate((data_price, data_volume), axis=1)
+        else:
+            self.data = data_price
 
     def __len__(self) -> int:
         return ((len(self.data) - self.encoder_length) // self.decoder_length) + 1
@@ -62,9 +64,14 @@ class StockDatasetInference(Dataset):
 
         data = torch.as_tensor(self.data[sequence_slice].T, dtype=torch.float)
         prices = torch.as_tensor(self.prices[sequence_slice].T, dtype=torch.float)
-        volumes = torch.as_tensor(self.volumes[sequence_slice].T, dtype=torch.float)
 
-        return {"sequence": data, "prices": prices, "volumes": volumes, "indexes": index}
+        return_dict = dict(sequence=data, prices=prices)
+
+        if self.target_feature_volume is not None:
+            volumes = torch.as_tensor(self.volumes[sequence_slice].T, dtype=torch.float)
+            return_dict["volumes"] = volumes
+
+        return return_dict
 
     def __repr__(self) -> str:
         return f"StockDataset({self.split=}, n_instances={len(self)})"

@@ -29,7 +29,10 @@ class StockDataset(Dataset):
         split: Split,
     ) -> None:
         super().__init__()
+
         self.df = pd.read_csv(path)
+        self.target_feature_price = target_feature_price
+        self.target_feature_volume = target_feature_volume
         self.encoder_length = encoder_length
         self.decoder_length = decoder_length
         self.stride = stride
@@ -38,23 +41,23 @@ class StockDataset(Dataset):
         self.split = split
 
         targets_price = [f"{target_feature_price}_{stock}" for stock in stock_names]
-        targets_volume = [f"{target_feature_volume}_{stock}" for stock in stock_names]
-
-        # Preprocess dataset targets
         data_price = data_pipeline_price.preprocess(self.df, targets_price)
-        data_volume = data_pipeline_volume.preprocess(self.df, targets_volume)
-
-        self.data = np.concatenate((data_price, data_volume), axis=1)
-
-        # Keep non preprocessed data
         self.prices = self.df[targets_price].to_numpy()
-        self.volumes = self.df[targets_volume].to_numpy()
+
+        if target_feature_volume is not None:
+            targets_volume = [f"{target_feature_volume}_{stock}" for stock in stock_names]
+            data_volume = data_pipeline_volume.preprocess(self.df, targets_volume)
+            self.volumes = self.df[targets_volume].to_numpy()
+            self.data = np.concatenate((data_price, data_volume), axis=1)
+        else:
+            self.data = data_price
 
     def __len__(self) -> int:
         # Length of dataset is similar to output size of convolution
         return ((len(self.data) - (self.encoder_length + self.decoder_length)) // self.stride) + 1
 
     def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
+
         x_slice = slice(self.stride * index, self.stride * index + self.encoder_length)
         y_slice = slice(
             self.stride * index + self.encoder_length,
@@ -64,9 +67,14 @@ class StockDataset(Dataset):
         x = torch.as_tensor(self.data[x_slice].T, dtype=torch.float)
         y = torch.as_tensor(self.data[y_slice].T, dtype=torch.float)
         x_prices = torch.as_tensor(self.prices[x_slice].T, dtype=torch.float)
-        x_volumes = torch.as_tensor(self.volumes[x_slice].T, dtype=torch.float)
 
-        return {"x": x, "y": y, "x_prices": x_prices, "x_volumes": x_volumes}
+        return_dict = dict(x=x, y=y, x_prices=x_prices)
+
+        if self.target_feature_volume is not None:
+            x_volumes = torch.as_tensor(self.volumes[x_slice].T, dtype=torch.float)
+            return_dict["x_volumes"] = x_volumes
+
+        return return_dict
 
     def __repr__(self) -> str:
         return f"StockDataset({self.split=}, n_instances={len(self)})"

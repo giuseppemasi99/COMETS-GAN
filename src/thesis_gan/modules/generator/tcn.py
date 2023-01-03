@@ -123,8 +123,8 @@ class TCNGenerator(nn.Module):
         # o.shape = [batch_size, num_features, decoder_length]
 
         o_price, o_volume = o[:, : self.n_stocks, :], o[:, self.n_stocks :, :]
-        # o_volume = torch.abs(o_volume)
 
+        # o_volume = torch.abs(o_volume)
         o_volume = self.tanh(o_volume)
 
         o = torch.concatenate((o_price, o_volume), dim=1)

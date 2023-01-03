@@ -1,6 +1,6 @@
 dataset_type: "multistock"
 target_feature_price: mid_price
-target_feature_volume: volume
+target_feature_volume: #volume
 stock_names: [KO, PEP, NVDA, KSU]
 encoder_length: 390
 decoder_length: 150
@@ -34,29 +34,24 @@ data:
       encoder_length: 390
       decoder_length: 150
       stride: 1
-      fool_scaler: False
 
     val:
-      - _target_: thesis_gan.data.dataset.StockDataset
+      - _target_: thesis_gan.data.datasetinference.StockDatasetInference
         path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_val.csv
         target_feature_price: ${nn.target_feature_price}
         target_feature_volume: ${nn.target_feature_volume}
         stock_names: ${nn.stock_names}
         encoder_length: 390
         decoder_length: 150
-        stride: 1
-        fool_scaler: False
 
     test:
-      - _target_: thesis_gan.data.dataset.StockDataset
+      - _target_: thesis_gan.data.datasetinference.StockDatasetInference
         path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_test.csv
         target_feature_price: ${nn.target_feature_price}
         target_feature_volume: ${nn.target_feature_volume}
         stock_names: ${nn.stock_names}
         encoder_length: 390
         decoder_length: 150
-        stride: 1
-        fool_scaler: False
 
   gpus: ${train.trainer.gpus}
 
@@ -67,8 +62,8 @@ data:
 
   batch_size:
     train: 128
-    val: 128
-    test: 128
+    val: 1
+    test: 1
 
 module:
   _target_: thesis_gan.pl_modules.pl_module.MyLightningModule
@@ -98,6 +93,8 @@ module:
     dropout: 0.2
     compute_corr: True
 
+  target_feature_price: ${nn.target_feature_price}
+  target_feature_volume: ${nn.target_feature_volume}
   stock_names: ${nn.stock_names}
   encoder_length: ${nn.encoder_length}
   decoder_length: ${nn.decoder_length}
