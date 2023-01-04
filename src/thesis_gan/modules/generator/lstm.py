@@ -49,7 +49,7 @@ class LSTMGenerator(nn.Module):
 
         o, _ = self.lstm(o)
         o = torch.permute(o, (0, 2, 1))
-        o = self.linear(o)
+        o = self.linear2(o)
         # o.shape = [batch_size, n_features, decoder_length]
 
         if self.is_volumes:
