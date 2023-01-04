@@ -54,6 +54,8 @@ class MyLightningModule(pl.LightningModule):
         self.generator = hydra.utils.instantiate(
             self.hparams.generator,
             n_features=self.hparams.n_features,
+            n_stocks=self.hparams.n_stocks,
+            is_volumes=True if self.hparams.target_feature_volume is not None else False,
             _recursive_=False,
         )
 
@@ -216,7 +218,7 @@ class MyLightningModule(pl.LightningModule):
         corr_distances = self.mse(corr_real, corr_pred).mean(dim=0)
         self.log_dict(
             {metric: corr_dist.item() for metric, corr_dist in zip(metric_names, corr_distances)},
-            on_step=True,
+            on_step=False,
             on_epoch=True,
             prog_bar=False,
         )
