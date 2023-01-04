@@ -22,7 +22,7 @@ class LSTMGenerator(nn.Module):
         self.lstm = nn.LSTM(
             input_size=n_features,
             hidden_size=encoder_length,
-            num_layers=1,
+            num_layers=2,
             bias=True,
             batch_first=True,
             dropout=dropout,
