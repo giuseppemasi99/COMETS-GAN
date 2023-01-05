@@ -20,7 +20,7 @@ from nn_core.common import PROJECT_ROOT
 from nn_core.model_logging import NNLogger
 
 import thesis_gan  # noqa
-from thesis_gan.common.utils import autocorrelation, corr
+from thesis_gan.common.utils import autocorrelation, compute_avg_log_returns, compute_avg_volumes, corr
 from thesis_gan.data.datamodule import MetaData
 
 pylogger = logging.getLogger(__name__)
@@ -137,18 +137,18 @@ class MyLightningModule(pl.LightningModule):
         self.log_correlation(sequence, "real")
         self.log_correlation(pred_sequence, "pred")
 
-        pred_sequence = pred_sequence.squeeze().cpu()
-        pred_prices = pred_prices.squeeze().cpu()
-        sequence = sequence.squeeze().cpu()
-        prices = prices.squeeze().cpu()
+        pred_sequence = pred_sequence.squeeze().detach().cpu()
+        pred_prices = pred_prices.squeeze().detach().cpu()
+        sequence = sequence.squeeze().detach().cpu()
+        prices = prices.squeeze().detach().cpu()
 
         sequence_price, pred_sequence_price = sequence[: self.hparams.n_stocks], pred_sequence[: self.hparams.n_stocks]
         self.log_multistock_prices(sequence_price, pred_sequence_price, prices, pred_prices)
 
         if self.hparams.target_feature_volume is not None:
             pred_volumes = dict_with_preds["pred_volumes"]
-            pred_volumes = pred_volumes.squeeze().cpu().numpy()
-            volumes = volumes.squeeze().cpu().numpy()
+            pred_volumes = pred_volumes.squeeze().detach().cpu().numpy()
+            volumes = volumes.squeeze().detach().cpu().numpy()
 
             sequence_volume, pred_sequence_volume = (
                 sequence[self.hparams.n_stocks :],
@@ -157,6 +157,9 @@ class MyLightningModule(pl.LightningModule):
             self.log_multistock_volumes(sequence_volume, pred_sequence_volume, volumes, pred_volumes)
             self.log_metrics_volume(volumes, pred_volumes)
             self.log_multistock_minmax_volumes(volumes, pred_volumes)
+            self.log_multistock_volume_volatility_correlation(
+                sequence_price, pred_sequence_price, sequence_volume, pred_sequence_volume
+            )
 
     def predict_autoregressively(
         self,
@@ -165,9 +168,7 @@ class MyLightningModule(pl.LightningModule):
         volumes: torch.Tensor,
         prediction_length: Optional[int] = None,
     ) -> Dict[str, torch.Tensor]:
-        last_price = prices[:, :, self.hparams.encoder_length].detach().cpu()
-        if self.hparams.target_feature_volume is not None:
-            last_volume = volumes[:, :, self.hparams.encoder_length].detach().cpu()
+        last_price = prices[:, :, -1].detach().cpu()
 
         if prediction_length is None:
             prediction_length = self.hparams.decoder_length
@@ -189,6 +190,7 @@ class MyLightningModule(pl.LightningModule):
         return_dict = dict(pred_sequence=torch.Tensor(pred_sequence), pred_prices=torch.Tensor(pred_prices))
 
         if self.hparams.target_feature_volume is not None:
+            last_volume = volumes[:, :, self.hparams.encoder_length].detach().cpu()
             pred_volumes = self.pipeline_volume.inverse_transform(
                 pred_sequence[0, self.hparams.n_stocks :, :].T, last_volume
             ).T
@@ -439,6 +441,57 @@ class MyLightningModule(pl.LightningModule):
         d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_pred)})
 
         self.log_dict(d, on_step=False, on_epoch=True, prog_bar=False)
+
+    def log_multistock_volume_volatility_correlation(
+        self,
+        sequence_price: torch.Tensor,
+        pred_sequence_price: torch.Tensor,
+        sequence_volume: torch.Tensor,
+        pred_sequence_volume: torch.Tensor,
+    ) -> None:
+        sequence_price = sequence_price.numpy().T
+        pred_sequence_price = pred_sequence_price.numpy().T
+        sequence_volume = sequence_volume.numpy().T
+        pred_sequence_volume = pred_sequence_volume.numpy().T
+
+        real_avg_log_returns = compute_avg_log_returns(sequence_price, self.hparams.delta)
+        real_avg_volumes = compute_avg_volumes(sequence_volume, self.hparams.delta)
+
+        pred_avg_log_returns = compute_avg_log_returns(pred_sequence_price, self.hparams.delta)
+        pred_avg_volumes = compute_avg_volumes(pred_sequence_volume, self.hparams.delta)
+
+        fig, ax = plt.subplots(2, self.hparams.n_stocks, figsize=(7 * self.hparams.n_stocks, 10))
+
+        for target_idx in range(self.hparams.n_stocks):
+            stock_name = self.hparams.stock_names[target_idx]
+
+            # Real volume-volatility correlation
+            title = f"{stock_name} - Real"
+            ax[0, target_idx].set_title(title)
+            ax[0, target_idx].scatter(
+                real_avg_log_returns[target_idx],
+                real_avg_volumes[target_idx],
+                color="C0",
+            )
+            ax[0, target_idx].set_xlabel("Avg log-returns")
+            ax[0, target_idx].set_ylabel("Avg log-volumes")
+
+            # Pred volume-volatility correlation
+            title = f"{stock_name} - Pred"
+            ax[1, target_idx].set_title(title)
+            ax[1, target_idx].scatter(
+                pred_avg_log_returns[target_idx],
+                pred_avg_volumes[target_idx],
+                color="C1",
+            )
+            ax[1, target_idx].set_xlabel("Avg log-returns")
+            ax[1, target_idx].set_ylabel("Avg log-volumes")
+
+        fig.tight_layout()
+        title = f"Volume-Volatility Corr - Epoch {self.current_epoch}"
+        self.logger.experiment.log({title: wandb.Image(fig)})
+
+        plt.close(fig)
 
     def configure_optimizers(self) -> Tuple[Dict[str, Optimizer], Dict[str, Optimizer]]:
         """Choose what optimizers and learning-rate schedulers to use in your optimization.

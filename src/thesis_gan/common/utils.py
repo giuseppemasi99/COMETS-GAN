@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import torch
 
 
@@ -25,3 +26,19 @@ def autocorrelation(series: np.ndarray) -> np.ndarray:
     x = np.arange(n) + 1
     y = np.array([r(loc) for loc in x])
     return y
+
+
+def compute_avg_log_returns(x, delta):
+    # x.shape = [sequence_length, n_stocks]
+    x = pd.DataFrame(x)
+    x = x.rolling(delta).mean().to_numpy().squeeze()
+    x = x[::delta][1:]
+    return x.T
+
+
+def compute_avg_volumes(x, delta):
+    # x.shape = [sequence_length, n_stocks]
+    x = pd.DataFrame(x)
+    x = x.rolling(delta).mean().to_numpy().squeeze()
+    x = x[::delta][1:]
+    return x.T
