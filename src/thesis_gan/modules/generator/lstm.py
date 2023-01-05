@@ -19,38 +19,46 @@ class LSTMGenerator(nn.Module):
 
         self.linear1 = nn.Linear(n_features + 1, n_features)
 
-        self.lstm = nn.LSTM(
-            input_size=n_features,
-            hidden_size=encoder_length,
-            num_layers=2,
-            bias=True,
+        self.lstm1 = nn.LSTM(
+            input_size=n_features + 1,
+            hidden_size=256,
             batch_first=True,
             dropout=dropout,
-            bidirectional=False,
+        )
+
+        self.linear2 = nn.Linear(256, 192)
+
+        self.lstm2 = nn.LSTM(
+            input_size=192,
+            hidden_size=decoder_length,
+            batch_first=True,
+            dropout=dropout,
             proj_size=n_features,
         )
 
-        self.linear2 = nn.Linear(encoder_length, decoder_length)
+        self.linear3 = nn.Linear(encoder_length, decoder_length)
 
+        self.dropout = nn.Dropout(p=dropout)
+        self.relu = nn.ReLU()
         self.tanh = nn.Tanh()
 
     def forward(self, x: torch.Tensor, noise: torch.Tensor):
-        # noise.shape = [batch_size, 1, encoder_length]
-        # x.shape = [batch_size, n_features, encoder_length]
 
         x = torch.cat((x, noise), dim=1)
-        # x.shape = [batch_size, n_features+1, encoder_length]
 
         x = torch.permute(x, (0, 2, 1))
-        # x.shape = [batch_size, encoder_length, n_features+1]
 
-        o = self.linear1(x)
-        # o.shape = [batch_size, encoder_length, n_features]
+        o, _ = self.lstm1(x)
 
-        o, _ = self.lstm(o)
-        o = torch.permute(o, (0, 2, 1))
         o = self.linear2(o)
-        # o.shape = [batch_size, n_features, decoder_length]
+
+        o = self.dropout(self.relu(o))
+
+        o, _ = self.lstm2(o)
+
+        o = torch.permute(o, (0, 2, 1))
+
+        o = self.linear3(o)
 
         if self.is_volumes:
             o_price, o_volume = o[:, : self.n_stocks, :], o[:, self.n_stocks :, :]
@@ -60,5 +68,4 @@ class LSTMGenerator(nn.Module):
 
             o = torch.concatenate((o_price, o_volume), dim=1)
 
-        # o.shape = [batch_size, n_features, decoder_length]
         return o
