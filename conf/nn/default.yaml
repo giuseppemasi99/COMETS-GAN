@@ -1,6 +1,6 @@
 dataset_type: "multistock"
 target_feature_price: mid_price
-target_feature_volume: #volume
+target_feature_volume: volume
 stock_names: [KO, PEP, NVDA, KSU]
 encoder_length: 390
 decoder_length: 150
@@ -100,3 +100,4 @@ module:
   decoder_length: ${nn.decoder_length}
   n_critic: 5
   val_log_freq: 5
+  delta: 15
