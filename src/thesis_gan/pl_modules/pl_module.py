@@ -324,8 +324,10 @@ class MyLightningModule(pl.LightningModule):
             ax[3, target_idx].plot(abs_autocorr_preds, color="C2")
 
         fig.legend(handles=legend_elements, loc="upper right", ncol=1)
+        fig.suptitle(f"Epoch {self.current_epoch}")
         fig.tight_layout()
-        title = f"Prices - Epoch {self.current_epoch}"
+        # title = f"Prices - Epoch {self.current_epoch}"
+        title = "Prices"
         self.logger.experiment.log({title: wandb.Image(fig)})
 
         plt.close(fig)
@@ -397,8 +399,10 @@ class MyLightningModule(pl.LightningModule):
             )
 
         fig.legend(handles=legend_elements, loc="upper right", ncol=1)
+        fig.suptitle(f"Epoch {self.current_epoch}")
         fig.tight_layout()
-        title = f"Volumes - Epoch {self.current_epoch}"
+        # title = f"Volumes - Epoch {self.current_epoch}"
+        title = "Volumes"
         self.logger.experiment.log({title: wandb.Image(fig)})
 
         plt.close(fig)
@@ -487,8 +491,10 @@ class MyLightningModule(pl.LightningModule):
             ax[1, target_idx].set_xlabel("Avg log-returns")
             ax[1, target_idx].set_ylabel("Avg log-volumes")
 
+        fig.suptitle(f"Epoch {self.current_epoch}")
         fig.tight_layout()
-        title = f"Volume-Volatility Corr - Epoch {self.current_epoch}"
+        # title = f"Volume-Volatility Corr - Epoch {self.current_epoch}"
+        title = "Volume-Volatility Corr"
         self.logger.experiment.log({title: wandb.Image(fig)})
 
         plt.close(fig)
