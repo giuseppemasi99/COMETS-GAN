@@ -11,7 +11,8 @@ class LSTMGenerator(nn.Module):
         n_stocks: int,
         is_volumes: int,
         dropout: float,
-        hidden_dim=None,
+        hidden_dim1=256,
+        hidden_dim2=192,
     ) -> None:
         super(LSTMGenerator, self).__init__()
         self.n_stocks = n_stocks
@@ -21,15 +22,15 @@ class LSTMGenerator(nn.Module):
 
         self.lstm1 = nn.LSTM(
             input_size=n_features + 1,
-            hidden_size=256,
+            hidden_size=hidden_dim1,
             batch_first=True,
             dropout=dropout,
         )
 
-        self.linear2 = nn.Linear(256, 192)
+        self.linear2 = nn.Linear(hidden_dim1, hidden_dim2)
 
         self.lstm2 = nn.LSTM(
-            input_size=192,
+            input_size=hidden_dim2,
             hidden_size=decoder_length,
             batch_first=True,
             dropout=dropout,

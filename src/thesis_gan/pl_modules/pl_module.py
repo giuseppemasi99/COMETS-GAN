@@ -99,7 +99,7 @@ class MyLightningModule(pl.LightningModule):
             g_loss = -torch.mean(self.discriminator(x, y_pred))
             self.log_dict({"loss/gen": g_loss}, on_step=True, on_epoch=True, prog_bar=True)
             if self.hparams.dataset_type == "multistock":
-                self.log_correlation_distance(y_real, y_pred)
+                self.log_correlation_distance(y_real, y_pred, stage="train")
             return g_loss
 
         # Train discriminator
@@ -134,13 +134,19 @@ class MyLightningModule(pl.LightningModule):
         pred_sequence = dict_with_preds["pred_sequence"]
         pred_prices = dict_with_preds["pred_prices"]
 
+        pred_sequence = pred_sequence.detach().cpu()
+        pred_prices = pred_prices.detach().cpu()
+        sequence = sequence.detach().cpu()
+        prices = prices.detach().cpu()
+
         self.log_correlation(sequence, "real")
         self.log_correlation(pred_sequence, "pred")
+        self.log_correlation_distance(sequence, pred_sequence, "val")
 
-        pred_sequence = pred_sequence.squeeze().detach().cpu()
-        pred_prices = pred_prices.squeeze().detach().cpu()
-        sequence = sequence.squeeze().detach().cpu()
-        prices = prices.squeeze().detach().cpu()
+        pred_sequence = pred_sequence.squeeze()
+        pred_prices = pred_prices.squeeze()
+        sequence = sequence.squeeze()
+        prices = prices.squeeze()
 
         sequence_price, pred_sequence_price = sequence[: self.hparams.n_stocks], pred_sequence[: self.hparams.n_stocks]
         self.log_multistock_prices(sequence_price, pred_sequence_price, prices, pred_prices)
@@ -200,7 +206,6 @@ class MyLightningModule(pl.LightningModule):
 
     def log_correlation(self, y_realOpred: torch.Tensor, realOpred: str) -> None:
         correlations = corr(y_realOpred).squeeze()
-        print("correlations.shape:", correlations.shape)
 
         metric_names = [f"{realOpred}_correlation/{'-'.join(x)}" for x in combinations(self.feature_names, 2)]
 
@@ -211,13 +216,14 @@ class MyLightningModule(pl.LightningModule):
             prog_bar=False,
         )
 
-    def log_correlation_distance(self, y_real: torch.Tensor, y_pred: torch.Tensor) -> None:
+    def log_correlation_distance(self, y_real: torch.Tensor, y_pred: torch.Tensor, stage: str) -> None:
         corr_real = corr(y_real)
         corr_pred = corr(y_pred)
 
-        metric_names = [f"corr_dist/{'-'.join(x)}" for x in combinations(self.feature_names, 2)]
+        metric_names = [f"{stage}_corr_dist/{'-'.join(x)}" for x in combinations(self.feature_names, 2)]
 
         corr_distances = self.mse(corr_real, corr_pred).mean(dim=0)
+
         self.log_dict(
             {metric: corr_dist.item() for metric, corr_dist in zip(metric_names, corr_distances)},
             on_step=False,
@@ -326,8 +332,7 @@ class MyLightningModule(pl.LightningModule):
         fig.legend(handles=legend_elements, loc="upper right", ncol=1)
         fig.suptitle(f"Epoch {self.current_epoch}")
         fig.tight_layout()
-        # title = f"Prices - Epoch {self.current_epoch}"
-        title = "Prices"
+        title = f"Prices - Epoch {self.current_epoch}"
         self.logger.experiment.log({title: wandb.Image(fig)})
 
         plt.close(fig)
@@ -401,8 +406,7 @@ class MyLightningModule(pl.LightningModule):
         fig.legend(handles=legend_elements, loc="upper right", ncol=1)
         fig.suptitle(f"Epoch {self.current_epoch}")
         fig.tight_layout()
-        # title = f"Volumes - Epoch {self.current_epoch}"
-        title = "Volumes"
+        title = f"Volumes - Epoch {self.current_epoch}"
         self.logger.experiment.log({title: wandb.Image(fig)})
 
         plt.close(fig)
@@ -493,8 +497,7 @@ class MyLightningModule(pl.LightningModule):
 
         fig.suptitle(f"Epoch {self.current_epoch}")
         fig.tight_layout()
-        # title = f"Volume-Volatility Corr - Epoch {self.current_epoch}"
-        title = "Volume-Volatility Corr"
+        title = f"Volume-Volatility Corr - Epoch {self.current_epoch}"
         self.logger.experiment.log({title: wandb.Image(fig)})
 
         plt.close(fig)
