@@ -1,7 +1,7 @@
 import logging
 import math
 from itertools import combinations
-from typing import Any, Dict, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 import hydra
 import numpy as np
@@ -168,7 +168,7 @@ class MyLightningModule(pl.LightningModule):
         volumes: torch.Tensor,
         prediction_length: Optional[int] = None,
     ) -> Dict[str, torch.Tensor]:
-        last_price = prices[:, :, -1].detach().cpu()
+        last_price = prices[:, :, self.hparams.encoder_length - 1].detach().cpu()
 
         if prediction_length is None:
             prediction_length = self.hparams.decoder_length
@@ -190,7 +190,7 @@ class MyLightningModule(pl.LightningModule):
         return_dict = dict(pred_sequence=torch.Tensor(pred_sequence), pred_prices=torch.Tensor(pred_prices))
 
         if self.hparams.target_feature_volume is not None:
-            last_volume = volumes[:, :, self.hparams.encoder_length].detach().cpu()
+            last_volume = volumes[:, :, self.hparams.encoder_length - 1].detach().cpu()
             pred_volumes = self.pipeline_volume.inverse_transform(
                 pred_sequence[0, self.hparams.n_stocks :, :].T, last_volume
             ).T
@@ -199,13 +199,13 @@ class MyLightningModule(pl.LightningModule):
         return return_dict
 
     def log_correlation(self, y_realOpred: torch.Tensor, realOpred: str) -> None:
-        correlation = corr(y_realOpred)
+        correlations = corr(y_realOpred).squeeze()
+        print("correlations.shape:", correlations.shape)
 
-        metric_names = [f"{realOpred}_avg_correlation/{'-'.join(x)}" for x in combinations(self.feature_names, 2)]
-        avg_correlations = torch.mean(correlation, dim=0)
+        metric_names = [f"{realOpred}_correlation/{'-'.join(x)}" for x in combinations(self.feature_names, 2)]
 
         self.log_dict(
-            {metric: avg_correlation.item() for metric, avg_correlation in zip(metric_names, avg_correlations)},
+            {metric: correlation.item() for metric, correlation in zip(metric_names, correlations)},
             on_step=False,
             on_epoch=True,
             prog_bar=False,
@@ -529,39 +529,6 @@ class MyLightningModule(pl.LightningModule):
             {"optimizer": opt_g, "frequency": 1},
             {"optimizer": opt_d, "frequency": self.hparams.n_critic},
         )
-
-    # def validation_step(self, batch: Any, batch_idx: int) -> None:
-    #     if batch_idx % self.hparams.val_log_freq == 0:
-    #         noise = torch.randn(batch["x"].shape[0], 1, self.hparams.encoder_length, device=self.device)
-    #         fake = self(batch["x"], noise)
-    #         if self.hparams.dataset_type == "multistock":
-    #             x, y = batch["x"], batch["y"]
-    #             x_prices, x_volumes = x[:, : self.hparams.n_stocks, :], x[:, self.hparams.n_stocks :, :]
-    #             y_prices, y_volumes = y[:, : self.hparams.n_stocks, :], y[:, self.hparams.n_stocks :, :]
-    #             prices, volumes = batch["x_prices"], batch["x_volumes"]
-    #             fake_prices, fake_volumes = fake[:, : self.hparams.n_stocks, :], fake[:, self.hparams.n_stocks :, :]
-    #             self.log_multistock_prices(x_prices, y_prices, prices, fake_prices, batch_idx)
-    #             self.log_multistock_volumes(x_volumes, y_volumes, volumes, fake_volumes, batch_idx)
-    #         elif self.hparams.dataset_type == "sines" or self.hparams.dataset_type == "gaussian":
-    #             self.log_sines_gaussian(batch, fake, batch_idx)
-
-    def inverse_transform(self, y: torch.Tensor, last_prices: torch.Tensor) -> np.ndarray:
-        y_prices = []
-        for i in range(len(last_prices)):
-            y_prices.append(self.pipeline.inverse_transform(y[i].detach().cpu().numpy().T, last_prices[i]).T)
-        return np.stack(y_prices)
-
-    def predict(self, batch: Dict[str, torch.Tensor]) -> Dict[str, Union[torch.Tensor, np.ndarray]]:
-        batch_size, _, encoder_length = batch["x"].shape
-        noise = torch.randn(batch_size, 1, encoder_length)
-
-        y_pred = self(batch["x"], noise)
-        last_prices = batch["x_prices"][:, :, -1]
-        y_pred_prices = self.inverse_transform(y_pred, last_prices)
-
-        return_dict = dict(y_pred=y_pred, y_pred_prices=y_pred_prices)
-
-        return return_dict
 
     def log_sines_gaussian(self, batch: Dict[str, torch.Tensor], y_pred: torch.Tensor, batch_idx: int) -> None:
         history_indexes = np.arange(self.hparams.encoder_length)
