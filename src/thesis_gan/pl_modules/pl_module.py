@@ -55,6 +55,7 @@ class MyLightningModule(pl.LightningModule):
             self.hparams.generator,
             n_features=self.hparams.n_features,
             n_stocks=self.hparams.n_stocks,
+            is_prices=True if self.hparams.target_feature_price is not None else False,
             is_volumes=True if self.hparams.target_feature_volume is not None else False,
             _recursive_=False,
         )

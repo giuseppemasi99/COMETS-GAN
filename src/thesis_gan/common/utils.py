@@ -12,6 +12,7 @@ def corr(x_batch: torch.Tensor) -> torch.Tensor:
         correlation = torch.corrcoef(x)
         correlation = correlation[indices[0], indices[1]]
         correlations.append(correlation)
+
     return torch.stack(correlations)
 
 
