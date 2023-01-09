@@ -40,16 +40,16 @@ class MyLightningModule(pl.LightningModule):
 
         if self.hparams.dataset_type == "multistock":
             self.hparams.n_stocks = len(self.hparams.stock_names)
-            self.hparams.n_features = (
-                2 * self.hparams.n_stocks if self.hparams.target_feature_volume is not None else self.hparams.n_stocks
-            )
-            self.feature_names = [
-                stock_name + "_" + self.hparams.target_feature_price for stock_name in self.hparams.stock_names
-            ]
+            self.feature_names = list()
+            if self.hparams.target_feature_price is not None:
+                self.feature_names.extend(
+                    [stock_name + "_" + self.hparams.target_feature_price for stock_name in self.hparams.stock_names]
+                )
             if self.hparams.target_feature_volume is not None:
                 self.feature_names.extend(
                     [stock_name + "_" + self.hparams.target_feature_volume for stock_name in self.hparams.stock_names]
                 )
+            self.hparams.n_features = len(self.feature_names)
 
         self.generator = hydra.utils.instantiate(
             self.hparams.generator,
@@ -118,12 +118,14 @@ class MyLightningModule(pl.LightningModule):
         sequence, prices, volumes = list(), list(), list()
         for batch in samples:
             sequence.append(batch["sequence"])
-            prices.append(batch["prices"])
+            if self.hparams.target_feature_price is not None:
+                prices.append(batch["prices"])
             if self.hparams.target_feature_volume is not None:
                 volumes.append(batch["volumes"])
 
         sequence = torch.concatenate(sequence, dim=2)
-        prices = torch.concatenate(prices, dim=2)
+        if self.hparams.target_feature_price is not None:
+            prices = torch.concatenate(prices, dim=2)
         if self.hparams.target_feature_volume is not None:
             volumes = torch.concatenate(volumes, dim=2)
 
@@ -132,42 +134,53 @@ class MyLightningModule(pl.LightningModule):
         )
 
         pred_sequence = dict_with_preds["pred_sequence"]
-        pred_prices = dict_with_preds["pred_prices"]
-
         pred_sequence = pred_sequence.detach().cpu()
-        pred_prices = pred_prices.detach().cpu()
         sequence = sequence.detach().cpu()
-        prices = prices.detach().cpu()
-
-        self.log_correlation(sequence, "real")
         self.log_correlation(pred_sequence, "pred")
+        self.log_correlation(sequence, "real")
         self.log_correlation_distance(sequence, pred_sequence, "val")
-
         pred_sequence = pred_sequence.squeeze()
-        pred_prices = pred_prices.squeeze()
         sequence = sequence.squeeze()
-        prices = prices.squeeze()
-
-        sequence_price, pred_sequence_price = sequence[: self.hparams.n_stocks], pred_sequence[: self.hparams.n_stocks]
 
         if self.current_epoch > 0:
-            self.log_multistock_prices(sequence_price, pred_sequence_price, prices, pred_prices)
+
+            if self.hparams.target_feature_price is not None:
+                pred_prices = dict_with_preds["pred_prices"]
+                pred_prices = pred_prices.detach().cpu().squeeze()
+                prices = prices.detach().cpu().squeeze()
 
             if self.hparams.target_feature_volume is not None:
                 pred_volumes = dict_with_preds["pred_volumes"]
                 pred_volumes = pred_volumes.squeeze().detach().cpu().numpy()
                 volumes = volumes.squeeze().detach().cpu().numpy()
 
+            if self.hparams.target_feature_price is not None and self.hparams.target_feature_volume is not None:
+                sequence_price, pred_sequence_price = (
+                    sequence[: self.hparams.n_stocks],
+                    pred_sequence[: self.hparams.n_stocks],
+                )
                 sequence_volume, pred_sequence_volume = (
                     sequence[self.hparams.n_stocks :],
                     pred_sequence[self.hparams.n_stocks :],
                 )
+                self.log_multistock_prices(sequence_price, pred_sequence_price, prices, pred_prices)
                 self.log_multistock_volumes(sequence_volume, pred_sequence_volume, volumes, pred_volumes)
                 self.log_metrics_volume(volumes, pred_volumes)
                 self.log_multistock_minmax_volumes(volumes, pred_volumes)
                 self.log_multistock_volume_volatility_correlation(
                     sequence_price, pred_sequence_price, sequence_volume, pred_sequence_volume
                 )
+                self.log_multistock_volume_volatility_correlation(
+                    sequence_price, pred_sequence_price, sequence_volume, pred_sequence_volume
+                )
+            elif self.hparams.target_feature_price is not None:
+                sequence_price, pred_sequence_price = sequence, pred_sequence
+                self.log_multistock_prices(sequence_price, pred_sequence_price, prices, pred_prices)
+            elif self.hparams.target_feature_volume is not None:
+                sequence_volume, pred_sequence_volume = sequence, pred_sequence
+                self.log_multistock_volumes(sequence_volume, pred_sequence_volume, volumes, pred_volumes)
+                self.log_metrics_volume(volumes, pred_volumes)
+                self.log_multistock_minmax_volumes(volumes, pred_volumes)
 
     def predict_autoregressively(
         self,
@@ -176,7 +189,6 @@ class MyLightningModule(pl.LightningModule):
         volumes: torch.Tensor,
         prediction_length: Optional[int] = None,
     ) -> Dict[str, torch.Tensor]:
-        last_price = prices[:, :, self.hparams.encoder_length - 1].detach().cpu()
 
         if prediction_length is None:
             prediction_length = self.hparams.decoder_length
@@ -190,17 +202,31 @@ class MyLightningModule(pl.LightningModule):
             pred_sequence = torch.concatenate((pred_sequence, o), dim=2)
 
         pred_sequence = pred_sequence.detach().cpu().numpy()
+        return_dict = dict(pred_sequence=torch.Tensor(pred_sequence))
 
-        pred_prices = self.pipeline_price.inverse_transform(
-            pred_sequence[0, : self.hparams.n_stocks, :].T, last_price
-        ).T
-
-        return_dict = dict(pred_sequence=torch.Tensor(pred_sequence), pred_prices=torch.Tensor(pred_prices))
-
-        if self.hparams.target_feature_volume is not None:
+        if self.hparams.target_feature_price is not None and self.hparams.target_feature_volume is not None:
+            last_price = prices[:, :, self.hparams.encoder_length - 1].detach().cpu()
+            pred_prices = self.pipeline_price.inverse_transform(
+                pred_sequence[0, : self.hparams.n_stocks, :].T, last_price
+            ).T
+            return_dict["pred_prices"] = torch.Tensor(pred_prices)
             last_volume = volumes[:, :, self.hparams.encoder_length - 1].detach().cpu()
             pred_volumes = self.pipeline_volume.inverse_transform(
                 pred_sequence[0, self.hparams.n_stocks :, :].T, last_volume
+            ).T
+            return_dict["pred_volumes"] = torch.Tensor(pred_volumes)
+
+        elif self.hparams.target_feature_price is not None:
+            last_price = prices[:, :, self.hparams.encoder_length - 1].detach().cpu()
+            pred_prices = self.pipeline_price.inverse_transform(
+                pred_sequence[0, : self.hparams.n_stocks, :].T, last_price
+            ).T
+            return_dict["pred_prices"] = torch.Tensor(pred_prices)
+
+        elif self.hparams.target_feature_volume is not None:
+            last_volume = volumes[:, :, self.hparams.encoder_length - 1].detach().cpu()
+            pred_volumes = self.pipeline_volume.inverse_transform(
+                pred_sequence[0, : self.hparams.n_stocks, :].T, last_volume
             ).T
             return_dict["pred_volumes"] = torch.Tensor(pred_volumes)
 

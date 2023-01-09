@@ -40,17 +40,22 @@ class StockDataset(Dataset):
         self.data_pipeline_volume = data_pipeline_volume
         self.split = split
 
-        targets_price = [f"{target_feature_price}_{stock}" for stock in stock_names]
-        data_price = data_pipeline_price.preprocess(self.df, targets_price)
-        self.prices = self.df[targets_price].to_numpy()
+        if target_feature_price is not None:
+            targets_price = [f"{target_feature_price}_{stock}" for stock in stock_names]
+            data_price = data_pipeline_price.preprocess(self.df, targets_price)
+            self.prices = self.df[targets_price].to_numpy()
 
         if target_feature_volume is not None:
             targets_volume = [f"{target_feature_volume}_{stock}" for stock in stock_names]
             data_volume = data_pipeline_volume.preprocess(self.df, targets_volume)
             self.volumes = self.df[targets_volume].to_numpy()
+
+        if target_feature_price is not None and target_feature_volume is not None:
             self.data = np.concatenate((data_price, data_volume), axis=1)
-        else:
+        elif target_feature_price is not None:
             self.data = data_price
+        elif target_feature_volume is not None:
+            self.data = data_volume
 
     def __len__(self) -> int:
         # Length of dataset is similar to output size of convolution
@@ -66,13 +71,16 @@ class StockDataset(Dataset):
 
         x = torch.as_tensor(self.data[x_slice].T, dtype=torch.float)
         y = torch.as_tensor(self.data[y_slice].T, dtype=torch.float)
-        x_prices = torch.as_tensor(self.prices[x_slice].T, dtype=torch.float)
 
-        return_dict = dict(x=x, y=y, x_prices=x_prices)
+        return_dict = dict(x=x, y=y)
 
         if self.target_feature_volume is not None:
             x_volumes = torch.as_tensor(self.volumes[x_slice].T, dtype=torch.float)
             return_dict["x_volumes"] = x_volumes
+
+        if self.target_feature_price is not None:
+            x_prices = torch.as_tensor(self.prices[x_slice].T, dtype=torch.float)
+            return_dict["x_prices"] = x_prices
 
         return return_dict
 
