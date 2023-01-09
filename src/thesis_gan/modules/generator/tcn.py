@@ -118,21 +118,16 @@ class TCNGenerator(nn.Module):
         self.tanh = nn.Tanh()
 
     def forward(self, x: torch.Tensor, noise: torch.Tensor):
-        # print(x.shape)
         # x.shape = [batch_size, n_features, encoder_length]
+        # noise.shape = [batch_size, 1, encoder_length]
 
         o = self.tcn(x, noise)
         o = self.linear_out(o)
-        # o.shape = [batch_size, n_features, decoder_length]
 
         if self.is_volumes:
             o_price, o_volume = o[:, : self.n_stocks, :], o[:, self.n_stocks :, :]
-
-            # o_volume = torch.abs(o_volume)
             o_volume = self.tanh(o_volume)
-
             o = torch.concatenate((o_price, o_volume), dim=1)
 
         # o.shape = [batch_size, n_features, decoder_length]
-
         return o

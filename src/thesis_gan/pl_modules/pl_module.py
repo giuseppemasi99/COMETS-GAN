@@ -149,23 +149,25 @@ class MyLightningModule(pl.LightningModule):
         prices = prices.squeeze()
 
         sequence_price, pred_sequence_price = sequence[: self.hparams.n_stocks], pred_sequence[: self.hparams.n_stocks]
-        self.log_multistock_prices(sequence_price, pred_sequence_price, prices, pred_prices)
 
-        if self.hparams.target_feature_volume is not None:
-            pred_volumes = dict_with_preds["pred_volumes"]
-            pred_volumes = pred_volumes.squeeze().detach().cpu().numpy()
-            volumes = volumes.squeeze().detach().cpu().numpy()
+        if self.current_epoch > 0:
+            self.log_multistock_prices(sequence_price, pred_sequence_price, prices, pred_prices)
 
-            sequence_volume, pred_sequence_volume = (
-                sequence[self.hparams.n_stocks :],
-                pred_sequence[self.hparams.n_stocks :],
-            )
-            self.log_multistock_volumes(sequence_volume, pred_sequence_volume, volumes, pred_volumes)
-            self.log_metrics_volume(volumes, pred_volumes)
-            self.log_multistock_minmax_volumes(volumes, pred_volumes)
-            self.log_multistock_volume_volatility_correlation(
-                sequence_price, pred_sequence_price, sequence_volume, pred_sequence_volume
-            )
+            if self.hparams.target_feature_volume is not None:
+                pred_volumes = dict_with_preds["pred_volumes"]
+                pred_volumes = pred_volumes.squeeze().detach().cpu().numpy()
+                volumes = volumes.squeeze().detach().cpu().numpy()
+
+                sequence_volume, pred_sequence_volume = (
+                    sequence[self.hparams.n_stocks :],
+                    pred_sequence[self.hparams.n_stocks :],
+                )
+                self.log_multistock_volumes(sequence_volume, pred_sequence_volume, volumes, pred_volumes)
+                self.log_metrics_volume(volumes, pred_volumes)
+                self.log_multistock_minmax_volumes(volumes, pred_volumes)
+                self.log_multistock_volume_volatility_correlation(
+                    sequence_price, pred_sequence_price, sequence_volume, pred_sequence_volume
+                )
 
     def predict_autoregressively(
         self,
