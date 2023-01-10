@@ -156,6 +156,7 @@ class MyLightningModule(pl.LightningModule):
                 volumes = volumes.squeeze().detach().cpu().numpy()
 
             if self.hparams.target_feature_price is not None and self.hparams.target_feature_volume is not None:
+                # Both prices and volumes
                 sequence_price, pred_sequence_price = (
                     sequence[: self.hparams.n_stocks],
                     pred_sequence[: self.hparams.n_stocks],
@@ -171,13 +172,14 @@ class MyLightningModule(pl.LightningModule):
                 self.log_multistock_volume_volatility_correlation(
                     sequence_price, pred_sequence_price, sequence_volume, pred_sequence_volume
                 )
-                self.log_multistock_volume_volatility_correlation(
-                    sequence_price, pred_sequence_price, sequence_volume, pred_sequence_volume
-                )
+
             elif self.hparams.target_feature_price is not None:
+                # Only prices
                 sequence_price, pred_sequence_price = sequence, pred_sequence
                 self.log_multistock_prices(sequence_price, pred_sequence_price, prices, pred_prices)
+
             elif self.hparams.target_feature_volume is not None:
+                # Only volumes
                 sequence_volume, pred_sequence_volume = sequence, pred_sequence
                 self.log_multistock_volumes(sequence_volume, pred_sequence_volume, volumes, pred_volumes)
                 self.log_metrics_volume(volumes, pred_volumes)
@@ -206,6 +208,7 @@ class MyLightningModule(pl.LightningModule):
         return_dict = dict(pred_sequence=torch.Tensor(pred_sequence))
 
         if self.hparams.target_feature_price is not None and self.hparams.target_feature_volume is not None:
+            # Both prices and volumes
             last_price = prices[:, :, self.hparams.encoder_length - 1].detach().cpu()
             pred_prices = self.pipeline_price.inverse_transform(
                 pred_sequence[0, : self.hparams.n_stocks, :].T, last_price
@@ -218,6 +221,7 @@ class MyLightningModule(pl.LightningModule):
             return_dict["pred_volumes"] = torch.Tensor(pred_volumes)
 
         elif self.hparams.target_feature_price is not None:
+            # Only prices
             last_price = prices[:, :, self.hparams.encoder_length - 1].detach().cpu()
             pred_prices = self.pipeline_price.inverse_transform(
                 pred_sequence[0, : self.hparams.n_stocks, :].T, last_price
@@ -225,6 +229,7 @@ class MyLightningModule(pl.LightningModule):
             return_dict["pred_prices"] = torch.Tensor(pred_prices)
 
         elif self.hparams.target_feature_volume is not None:
+            # Only volumes
             last_volume = volumes[:, :, self.hparams.encoder_length - 1].detach().cpu()
             pred_volumes = self.pipeline_volume.inverse_transform(
                 pred_sequence[0, : self.hparams.n_stocks, :].T, last_volume
