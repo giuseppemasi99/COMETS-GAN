@@ -128,12 +128,11 @@ class MyDataModule(pl.LightningDataModule):
         pass
 
     def setup(self, stage: Optional[str] = None):
-        # Here you should instantiate your datasets, you may also split the train into train and validation if needed.
-        if (stage is None or stage == "fit") and (self.train_dataset is None and self.val_datasets is None):
-            # TODO: should I instantiate the data pipeline here?
-            data_pipeline_price = hydra.utils.instantiate(self.data_pipeline_price)
-            data_pipeline_volume = hydra.utils.instantiate(self.data_pipeline_volume)
 
+        data_pipeline_price = hydra.utils.instantiate(self.data_pipeline_price)
+        data_pipeline_volume = hydra.utils.instantiate(self.data_pipeline_volume)
+
+        if (stage is None or stage == "fit") and (self.train_dataset is None and self.val_datasets is None):
             self.train_dataset = hydra.utils.instantiate(
                 self.datasets.train,
                 data_pipeline_price=data_pipeline_price,
@@ -154,7 +153,13 @@ class MyDataModule(pl.LightningDataModule):
 
         if stage is None or stage == "test":
             self.test_datasets = [
-                hydra.utils.instantiate(dataset_cfg, split="test", path=PROJECT_ROOT / "data")
+                hydra.utils.instantiate(
+                    dataset_cfg,
+                    split="test",
+                    data_pipeline_price=data_pipeline_price,
+                    data_pipeline_volume=data_pipeline_volume,
+                )  # , path=PROJECT_ROOT / "data"
+                # )
                 for dataset_cfg in self.datasets.test
             ]
 
