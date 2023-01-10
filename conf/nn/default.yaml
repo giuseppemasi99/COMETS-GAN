@@ -69,6 +69,7 @@ module:
   _target_: thesis_gan.pl_modules.pl_module.MyLightningModule
 
   dataset_type: ${nn.dataset_type}
+  step_to_skip: 0
 
   optimizer_g:
     _target_: torch.optim.RMSprop
@@ -79,6 +80,7 @@ module:
     lr: 3e-4
 
   generator:
+    #_target_: thesis_gan.modules.generator.rnn.RNNGenerator
     _target_: thesis_gan.modules.generator.tcn.TCNGenerator
     encoder_length: ${nn.encoder_length}
     decoder_length: ${nn.decoder_length}

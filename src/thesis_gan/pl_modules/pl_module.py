@@ -1,5 +1,7 @@
 import logging
 import math
+import os
+import pickle
 from itertools import combinations
 from typing import Any, Dict, Optional, Sequence, Tuple
 
@@ -115,7 +117,16 @@ class MyLightningModule(pl.LightningModule):
     def validation_step(self, batch: Any, batch_idx: int) -> Any:
         return batch
 
+    def test_step(self, batch: Any, batch_idx: int) -> Any:
+        return batch
+
     def validation_epoch_end(self, samples: Sequence[Dict]) -> None:
+        self.__validation_n_test_epoch_end(samples)
+
+    def test_epoch_end(self, samples: Sequence[Dict]) -> None:
+        self.__validation_n_test_epoch_end(samples)
+
+    def __validation_n_test_epoch_end(self, samples: Sequence[Dict]) -> None:
         sequence, prices, volumes = list(), list(), list()
         for batch in samples:
             sequence.append(batch["sequence"])
@@ -130,11 +141,27 @@ class MyLightningModule(pl.LightningModule):
         if self.hparams.target_feature_volume is not None:
             volumes = torch.concatenate(volumes, dim=2)
 
+        sequence = sequence[:, :, self.hparams.step_to_skip :]
+        prices = prices[:, :, self.hparams.step_to_skip :]
+        volumes = volumes[:, :, self.hparams.step_to_skip :]
+
         dict_with_preds = self.predict_autoregressively(
             sequence, prices, volumes, prediction_length=sequence.shape[2] - self.hparams.encoder_length
         )
 
-        pred_sequence = dict_with_preds["pred_sequence"]
+        if not os.path.exists(self.logger.run_dir):
+            os.makedirs(self.logger.run_dir)
+
+        with open(
+            f"{self.logger.run_dir}/"
+            f"preds_epoch={self.current_epoch}-"
+            f"target_price={self.hparams.target_feature_price}-"
+            f"target_volume={self.hparams.target_feature_volume}.pickle",
+            "wb",
+        ) as handle:
+            pickle.dump(dict_with_preds, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        pred_sequence = dict_with_preds["pred_sequence"][:, :, : sequence.shape[2]]
         pred_sequence = pred_sequence.detach().cpu()
         sequence = sequence.detach().cpu()
         self.log_correlation(pred_sequence, "pred")
@@ -146,12 +173,12 @@ class MyLightningModule(pl.LightningModule):
         if self.current_epoch > 0:
 
             if self.hparams.target_feature_price is not None:
-                pred_prices = dict_with_preds["pred_prices"]
+                pred_prices = dict_with_preds["pred_prices"][:, : sequence.shape[1]]
                 pred_prices = pred_prices.detach().cpu().squeeze()
                 prices = prices.detach().cpu().squeeze()
 
             if self.hparams.target_feature_volume is not None:
-                pred_volumes = dict_with_preds["pred_volumes"]
+                pred_volumes = dict_with_preds["pred_volumes"][:, : sequence.shape[1]]
                 pred_volumes = pred_volumes.squeeze().detach().cpu().numpy()
                 volumes = volumes.squeeze().detach().cpu().numpy()
 

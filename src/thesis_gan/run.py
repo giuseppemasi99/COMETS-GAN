@@ -90,8 +90,14 @@ def run(cfg: DictConfig) -> str:
         **cfg.train.trainer,
     )
 
-    pylogger.info("Starting training!")
-    trainer.fit(model=model, datamodule=datamodule, ckpt_path=template_core.trainer_ckpt_path)
+    ckpt_path = cfg.train["checkpoint"]
+    if ckpt_path:
+        pylogger.info(f"Loading {ckpt_path}")
+        trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
+
+    else:
+        pylogger.info("Starting training!")
+        trainer.fit(model=model, datamodule=datamodule, ckpt_path=template_core.trainer_ckpt_path)
 
     # Logger closing to release resources/avoid multi-run conflicts
     if logger is not None:
