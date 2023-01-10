@@ -136,14 +136,13 @@ class MyLightningModule(pl.LightningModule):
                 volumes.append(batch["volumes"])
 
         sequence = torch.concatenate(sequence, dim=2)
+        sequence = sequence[:, :, self.hparams.step_to_skip :]
         if self.hparams.target_feature_price is not None:
             prices = torch.concatenate(prices, dim=2)
+            prices = prices[:, :, self.hparams.step_to_skip :]
         if self.hparams.target_feature_volume is not None:
             volumes = torch.concatenate(volumes, dim=2)
-
-        sequence = sequence[:, :, self.hparams.step_to_skip :]
-        prices = prices[:, :, self.hparams.step_to_skip :]
-        volumes = volumes[:, :, self.hparams.step_to_skip :]
+            volumes = volumes[:, :, self.hparams.step_to_skip :]
 
         dict_with_preds = self.predict_autoregressively(
             sequence, prices, volumes, prediction_length=sequence.shape[2] - self.hparams.encoder_length
@@ -151,7 +150,6 @@ class MyLightningModule(pl.LightningModule):
 
         if not os.path.exists(self.logger.run_dir):
             os.makedirs(self.logger.run_dir)
-
         with open(
             f"{self.logger.run_dir}/"
             f"preds_epoch={self.current_epoch}-"

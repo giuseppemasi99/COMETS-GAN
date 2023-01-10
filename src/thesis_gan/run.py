@@ -91,10 +91,9 @@ def run(cfg: DictConfig) -> str:
     )
 
     ckpt_path = cfg.train["checkpoint"]
-    if ckpt_path:
+    if ckpt_path is not None:
         pylogger.info(f"Loading {ckpt_path}")
         trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
-
     else:
         pylogger.info("Starting training!")
         trainer.fit(model=model, datamodule=datamodule, ckpt_path=template_core.trainer_ckpt_path)
