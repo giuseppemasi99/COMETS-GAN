@@ -32,9 +32,11 @@ class CNNDiscriminator(nn.Module):
         dropout: float,
         hidden_dim: int,
         compute_corr: bool,
+        alpha: float,
     ) -> None:
         super(CNNDiscriminator, self).__init__()
         self.compute_corr = compute_corr
+        self.alpha = alpha
         self.n_features = n_features
 
         self.convblock1 = nn.Sequential(conv_block(n_features, 16, dropout), nn.MaxPool1d(2))
@@ -64,6 +66,7 @@ class CNNDiscriminator(nn.Module):
 
         if self.n_features > 1 and self.compute_corr:
             correlations = corr(y_continuation)
-            output += self.linear_corr(correlations)
+            corr_score = self.linear_corr(correlations)
+            output = self.alpha * output + (1 - self.alpha) * corr_score
 
         return output
