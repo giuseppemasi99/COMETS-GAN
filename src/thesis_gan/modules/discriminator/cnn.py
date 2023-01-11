@@ -67,6 +67,9 @@ class CNNDiscriminator(nn.Module):
         if self.n_features > 1 and self.compute_corr:
             correlations = corr(y_continuation)
             corr_score = self.linear_corr(correlations)
-            output = self.alpha * output + (1 - self.alpha) * corr_score
+            if self.alpha is not None:
+                output = self.alpha * output + (1 - self.alpha) * corr_score
+            else:
+                output += corr_score
 
         return output

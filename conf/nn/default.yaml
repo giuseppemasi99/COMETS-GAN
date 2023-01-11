@@ -94,7 +94,7 @@ module:
     hidden_dim: 256
     dropout: 0.2
     compute_corr: True
-    alpha: 0.7
+    alpha:
 
   target_feature_price: ${nn.target_feature_price}
   target_feature_volume: ${nn.target_feature_volume}
