@@ -148,16 +148,17 @@ class MyLightningModule(pl.LightningModule):
             sequence, prices, volumes, prediction_length=sequence.shape[2] - self.hparams.encoder_length
         )
 
-        if not os.path.exists(self.logger.run_dir):
-            os.makedirs(self.logger.run_dir)
-        with open(
-            f"{self.logger.run_dir}/"
-            f"preds_epoch={self.current_epoch}-"
-            f"target_price={self.hparams.target_feature_price}-"
-            f"target_volume={self.hparams.target_feature_volume}.pickle",
-            "wb",
-        ) as handle:
-            pickle.dump(dict_with_preds, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        if hasattr(self.logger, "run_dir"):
+            if not os.path.exists(self.logger.run_dir):
+                os.makedirs(self.logger.run_dir)
+                with open(
+                    f"{self.logger.run_dir}/"
+                    f"preds_epoch={self.current_epoch}-"
+                    f"target_price={self.hparams.target_feature_price}-"
+                    f"target_volume={self.hparams.target_feature_volume}.pickle",
+                    "wb",
+                ) as handle:
+                    pickle.dump(dict_with_preds, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         pred_sequence = dict_with_preds["pred_sequence"][:, :, : sequence.shape[2]]
         pred_sequence = pred_sequence.detach().cpu()
