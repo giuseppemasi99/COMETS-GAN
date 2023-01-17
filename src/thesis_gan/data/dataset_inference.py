@@ -2,19 +2,18 @@ from pathlib import Path
 from typing import Dict, List
 
 import hydra
-import numpy as np
 import omegaconf
-import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
 from nn_core.common import PROJECT_ROOT
 from nn_core.nn_types import Split
 
+from thesis_gan.data.dataset import StockDataset
 from thesis_gan.data.pipeline import Pipeline
 
 
-class StockDatasetInference(Dataset):
+class StockDatasetInference(StockDataset):
     def __init__(
         self,
         path: Path,
@@ -23,36 +22,23 @@ class StockDatasetInference(Dataset):
         stock_names: List[str],
         encoder_length: int,
         decoder_length: int,
+        stride: int,
         data_pipeline_price: Pipeline,
         data_pipeline_volume: Pipeline,
         split: Split,
     ) -> None:
-        super().__init__()
-        self.df = pd.read_csv(path)
-        self.target_feature_price = target_feature_price
-        self.target_feature_volume = target_feature_volume
-        self.encoder_length = encoder_length
-        self.decoder_length = decoder_length
-        self.data_pipeline_price = data_pipeline_price
-        self.data_pipeline_volume = data_pipeline_volume
-        self.split = split
-
-        if target_feature_price is not None:
-            targets_price = [f"{target_feature_price}_{stock}" for stock in stock_names]
-            data_price = data_pipeline_price.preprocess(self.df, targets_price)
-            self.prices = self.df[targets_price].to_numpy()
-
-        if target_feature_volume is not None:
-            targets_volume = [f"{target_feature_volume}_{stock}" for stock in stock_names]
-            data_volume = data_pipeline_volume.preprocess(self.df, targets_volume)
-            self.volumes = self.df[targets_volume].to_numpy()
-
-        if target_feature_price is not None and target_feature_volume is not None:
-            self.data = np.concatenate((data_price, data_volume), axis=1)
-        elif target_feature_price is not None:
-            self.data = data_price
-        elif target_feature_volume is not None:
-            self.data = data_volume
+        super().__init__(
+            path,
+            target_feature_price,
+            target_feature_volume,
+            stock_names,
+            encoder_length,
+            decoder_length,
+            stride,
+            data_pipeline_price,
+            data_pipeline_volume,
+            split,
+        )
 
     def __len__(self) -> int:
         return ((len(self.data) - self.encoder_length) // self.decoder_length) + 1
@@ -80,9 +66,6 @@ class StockDatasetInference(Dataset):
             return_dict["volumes"] = volumes
 
         return return_dict
-
-    def __repr__(self) -> str:
-        return f"StockDataset({self.split=}, n_instances={len(self)})"
 
 
 @hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default", version_base=None)

@@ -1,5 +1,5 @@
 dataset_type: "multistock"
-target_feature_price: #mid_price
+target_feature_price: mid_price
 target_feature_volume: volume
 stock_names: [KO, PEP, NVDA, KSU]
 #stock_names: [AAPL, AMGN, AXP, BA, CAT, CRM, CSCO, CVX, DIS, GS, HD, HON, IBM, INTC, JNJ, JPM, KO, MCD, MMM, MRK, MSFT, NKE, PG, TRV, UNH, V, VZ, WBA, WMT]
@@ -27,7 +27,7 @@ data:
 
   datasets:
     train:
-      _target_: thesis_gan.data.dataset.StockDataset
+      _target_: thesis_gan.data.dataset_train.StockDatasetTrain
       path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_train.csv
       # path: ${oc.env:PROJECT_ROOT}/data/ohlc_DowJones/ohlc_DowJones_train.csv
       target_feature_price: ${nn.target_feature_price}
@@ -38,7 +38,7 @@ data:
       stride: 1
 
     val:
-      - _target_: thesis_gan.data.datasetinference.StockDatasetInference
+      - _target_: thesis_gan.data.dataset_inference.StockDatasetInference
         path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_val.csv
         # path: ${oc.env:PROJECT_ROOT}/data/ohlc_DowJones/ohlc_DowJones_val.csv
         target_feature_price: ${nn.target_feature_price}
@@ -46,9 +46,10 @@ data:
         stock_names: ${nn.stock_names}
         encoder_length: 390
         decoder_length: 150
+        stride:
 
     test:
-      - _target_: thesis_gan.data.datasetinference.StockDatasetInference
+      - _target_: thesis_gan.data.dataset_inference.StockDatasetInference
         path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_test.csv
         # path: ${oc.env:PROJECT_ROOT}/data/ohlc_DowJones/ohlc_DowJones_test.csv
         target_feature_price: ${nn.target_feature_price}
@@ -56,6 +57,7 @@ data:
         stock_names: ${nn.stock_names}
         encoder_length: 390
         decoder_length: 150
+        stride: 1
 
   gpus: ${train.trainer.gpus}
 
