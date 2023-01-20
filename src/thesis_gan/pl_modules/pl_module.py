@@ -74,14 +74,6 @@ class MyLightningModule(pl.LightningModule):
         self.mse = nn.MSELoss(reduction="none")
 
     def forward(self, x: torch.Tensor, noise: torch.Tensor) -> torch.Tensor:
-        """Method for the forward pass.
-
-        'training_step', 'validation_step' and 'test_step' should call
-        this method in order to compute the output predictions and the loss.
-
-        Returns:
-            output_dict: forward output containing the predictions (output logits ecc...) and the loss if any.
-        """
         # x.shape = [batch_size, n_features, encoder_length]
         out = self.generator(x, noise)
         # out.shape = [batch_size, n_features, decoder_length]
@@ -136,13 +128,16 @@ class MyLightningModule(pl.LightningModule):
                 volumes.append(batch["volumes"])
 
         sequence = torch.concatenate(sequence, dim=2)
+        dict_with_reals = dict(sequence=sequence.detach().cpu())
         sequence = sequence[:, :, self.hparams.step_to_skip :]
         if self.hparams.target_feature_price is not None:
             prices = torch.concatenate(prices, dim=2)
             prices = prices[:, :, self.hparams.step_to_skip :]
+            dict_with_reals["prices"] = prices.detach().cpu()
         if self.hparams.target_feature_volume is not None:
             volumes = torch.concatenate(volumes, dim=2)
             volumes = volumes[:, :, self.hparams.step_to_skip :]
+            dict_with_reals["volumes"] = volumes.detach().cpu()
 
         dict_with_preds = self.predict_autoregressively(
             sequence, prices, volumes, prediction_length=sequence.shape[2] - self.hparams.encoder_length
@@ -151,6 +146,7 @@ class MyLightningModule(pl.LightningModule):
         if hasattr(self.logger, "run_dir"):
             if not os.path.exists(self.logger.run_dir):
                 os.makedirs(self.logger.run_dir)
+
             with open(
                 f"{self.logger.run_dir}/"
                 f"preds_epoch={self.current_epoch}-"
@@ -159,6 +155,10 @@ class MyLightningModule(pl.LightningModule):
                 "wb",
             ) as handle:
                 pickle.dump(dict_with_preds, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+            if self.hparams.save_reals is True:
+                with open(f"{self.logger.run_dir}/reals.pickle", "wb") as handle:
+                    pickle.dump(dict_with_reals, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         pred_sequence = dict_with_preds["pred_sequence"][:, :, : sequence.shape[2]]
         pred_sequence = pred_sequence.detach().cpu()
