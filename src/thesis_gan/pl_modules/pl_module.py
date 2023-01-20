@@ -147,17 +147,22 @@ class MyLightningModule(pl.LightningModule):
             if not os.path.exists(self.logger.run_dir):
                 os.makedirs(self.logger.run_dir)
 
-            with open(
+            path_file_preds = (
                 f"{self.logger.run_dir}/"
                 f"preds_epoch={self.current_epoch}-"
                 f"target_price={self.hparams.target_feature_price}-"
-                f"target_volume={self.hparams.target_feature_volume}.pickle",
+                f"target_volume={self.hparams.target_feature_volume}"
+                f".pickle"
+            )
+            with open(
+                path_file_preds,
                 "wb",
             ) as handle:
                 pickle.dump(dict_with_preds, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-            if self.hparams.save_reals is True:
-                with open(f"{self.logger.run_dir}/reals.pickle", "wb") as handle:
+            path_file_reals = f"{self.logger.run_dir}/reals.pickle"
+            if self.hparams.save_reals is True and not os.path.exists(path_file_reals):
+                with open(path_file_reals, "wb") as handle:
                     pickle.dump(dict_with_reals, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         pred_sequence = dict_with_preds["pred_sequence"][:, :, : sequence.shape[2]]
