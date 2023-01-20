@@ -147,17 +147,8 @@ class MyLightningModule(pl.LightningModule):
             if not os.path.exists(self.logger.run_dir):
                 os.makedirs(self.logger.run_dir)
 
-            path_file_preds = (
-                f"{self.logger.run_dir}/"
-                f"preds_epoch={self.current_epoch}-"
-                f"target_price={self.hparams.target_feature_price}-"
-                f"target_volume={self.hparams.target_feature_volume}"
-                f".pickle"
-            )
-            with open(
-                path_file_preds,
-                "wb",
-            ) as handle:
+            path_file_preds = f"{self.logger.run_dir}/preds_epoch={self.current_epoch}-target_price={self.hparams.target_feature_price}-target_volume={self.hparams.target_feature_volume}.pickle"
+            with open(path_file_preds, "wb") as handle:
                 pickle.dump(dict_with_preds, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
             path_file_reals = f"{self.logger.run_dir}/reals.pickle"
