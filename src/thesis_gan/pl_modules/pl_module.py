@@ -2,7 +2,6 @@ import logging
 import math
 import os
 import pickle
-from itertools import combinations
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import hydra
@@ -15,14 +14,14 @@ import wandb
 from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
 from scipy import stats
-from torch import nn
 from torch.optim import Optimizer
 
 from nn_core.common import PROJECT_ROOT
 from nn_core.model_logging import NNLogger
 
 import thesis_gan  # noqa
-from thesis_gan.common.utils import autocorrelation, compute_avg_log_returns, compute_avg_volumes, corr
+from thesis_gan.common.metrics import get_correlation_distances_dict, get_correlations_dict
+from thesis_gan.common.utils import autocorrelation, compute_avg_log_returns, compute_avg_volumes
 from thesis_gan.data.datamodule import MetaData
 
 pylogger = logging.getLogger(__name__)
@@ -71,17 +70,7 @@ class MyLightningModule(pl.LightningModule):
         self.pipeline_price = metadata.data_pipeline_price
         self.pipeline_volume = metadata.data_pipeline_volume
 
-        self.mse = nn.MSELoss(reduction="none")
-
     def forward(self, x: torch.Tensor, noise: torch.Tensor) -> torch.Tensor:
-        """Method for the forward pass.
-
-        'training_step', 'validation_step' and 'test_step' should call
-        this method in order to compute the output predictions and the loss.
-
-        Returns:
-            output_dict: forward output containing the predictions (output logits ecc...) and the loss if any.
-        """
         # x.shape = [batch_size, n_features, encoder_length]
         out = self.generator(x, noise)
         # out.shape = [batch_size, n_features, decoder_length]
@@ -102,7 +91,7 @@ class MyLightningModule(pl.LightningModule):
             g_loss = -torch.mean(self.discriminator(x, y_pred))
             self.log_dict({"loss/gen": g_loss}, on_step=True, on_epoch=True, prog_bar=True)
             if self.hparams.dataset_type == "multistock":
-                self.log_correlation_distance(y_real, y_pred, stage="train")
+                self.log_correlation_distances(y_real, y_pred, stage="train")
             return g_loss
 
         # Train discriminator
@@ -127,6 +116,8 @@ class MyLightningModule(pl.LightningModule):
         self.__validation_n_test_epoch_end(samples)
 
     def __validation_n_test_epoch_end(self, samples: Sequence[Dict]) -> None:
+
+        # Aggregation of the batches
         sequence, prices, volumes = list(), list(), list()
         for batch in samples:
             sequence.append(batch["sequence"])
@@ -135,54 +126,74 @@ class MyLightningModule(pl.LightningModule):
             if self.hparams.target_feature_volume is not None:
                 volumes.append(batch["volumes"])
 
+        # Building the whole real sequences
         sequence = torch.concatenate(sequence, dim=2)
+        dict_with_reals = dict(sequence=sequence.detach().cpu())
         sequence = sequence[:, :, self.hparams.step_to_skip :]
         if self.hparams.target_feature_price is not None:
             prices = torch.concatenate(prices, dim=2)
             prices = prices[:, :, self.hparams.step_to_skip :]
+            dict_with_reals["prices"] = prices.detach().cpu()
         if self.hparams.target_feature_volume is not None:
             volumes = torch.concatenate(volumes, dim=2)
             volumes = volumes[:, :, self.hparams.step_to_skip :]
+            dict_with_reals["volumes"] = volumes.detach().cpu()
 
-        dict_with_preds = self.predict_autoregressively(
+        # Autoregressive prediction
+        dict_with_preds: Dict[str, torch.Tensor] = self.predict_autoregressively(
             sequence, prices, volumes, prediction_length=sequence.shape[2] - self.hparams.encoder_length
         )
 
+        # Saving preds and reals in pickle files
         if hasattr(self.logger, "run_dir"):
             if not os.path.exists(self.logger.run_dir):
                 os.makedirs(self.logger.run_dir)
-            with open(
-                f"{self.logger.run_dir}/"
-                f"preds_epoch={self.current_epoch}-"
-                f"target_price={self.hparams.target_feature_price}-"
-                f"target_volume={self.hparams.target_feature_volume}.pickle",
-                "wb",
-            ) as handle:
+
+            path_file_preds = f"{self.logger.run_dir}/preds_epoch={self.current_epoch}-target_price={self.hparams.target_feature_price}-target_volume={self.hparams.target_feature_volume}.pickle"
+            with open(path_file_preds, "wb") as handle:
                 pickle.dump(dict_with_preds, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+            path_file_reals = f"{self.logger.run_dir}/reals.pickle"
+            if self.hparams.save_reals is True and not os.path.exists(path_file_reals):
+                with open(path_file_reals, "wb") as handle:
+                    pickle.dump(dict_with_reals, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        # TODO: avoid the use of sequences, use directly the prices and/or the volumes
+
+        # Retrieving the pred_sequence and the real sequence
         pred_sequence = dict_with_preds["pred_sequence"][:, :, : sequence.shape[2]]
         pred_sequence = pred_sequence.detach().cpu()
         sequence = sequence.detach().cpu()
-        self.log_correlation(pred_sequence, "pred")
-        self.log_correlation(sequence, "real")
-        self.log_correlation_distance(sequence, pred_sequence, "val")
+
+        # Logging the correlations metrics
+        self.log_correlations(pred_sequence, "pred")
+        self.log_correlations(sequence, "real")
+        self.log_correlation_distances(sequence, pred_sequence, "val")
+
+        # Squeezing the batch dimension that is 1 at prediction time
         pred_sequence = pred_sequence.squeeze()
         sequence = sequence.squeeze()
 
         if self.current_epoch > 0:
 
+            # Retrieving prices, if there are
             if self.hparams.target_feature_price is not None:
                 pred_prices = dict_with_preds["pred_prices"][:, : sequence.shape[1]]
                 pred_prices = pred_prices.detach().cpu().squeeze()
                 prices = prices.detach().cpu().squeeze()
 
+            # Retrieving volumes, if there are
             if self.hparams.target_feature_volume is not None:
                 pred_volumes = dict_with_preds["pred_volumes"][:, : sequence.shape[1]]
                 pred_volumes = pred_volumes.squeeze().detach().cpu().numpy()
                 volumes = volumes.squeeze().detach().cpu().numpy()
 
+                # Logging volumes metrics
+                self.log_metrics_volume(volumes, pred_volumes)
+                self.log_multistock_minmax_volumes(volumes, pred_volumes)
+
+            # Both prices and volumes
             if self.hparams.target_feature_price is not None and self.hparams.target_feature_volume is not None:
-                # Both prices and volumes
                 sequence_price, pred_sequence_price = (
                     sequence[: self.hparams.n_stocks],
                     pred_sequence[: self.hparams.n_stocks],
@@ -191,25 +202,27 @@ class MyLightningModule(pl.LightningModule):
                     sequence[self.hparams.n_stocks :],
                     pred_sequence[self.hparams.n_stocks :],
                 )
+
+                # Plots: prices, volumes, stylised facts
                 self.log_multistock_prices(sequence_price, pred_sequence_price, prices, pred_prices)
                 self.log_multistock_volumes(sequence_volume, pred_sequence_volume, volumes, pred_volumes)
-                self.log_metrics_volume(volumes, pred_volumes)
-                self.log_multistock_minmax_volumes(volumes, pred_volumes)
                 self.log_multistock_volume_volatility_correlation(
                     sequence_price, pred_sequence_price, sequence_volume, pred_sequence_volume
                 )
 
+            # Only prices
             elif self.hparams.target_feature_price is not None:
-                # Only prices
                 sequence_price, pred_sequence_price = sequence, pred_sequence
+
+                # Plots: prices, stylised facts
                 self.log_multistock_prices(sequence_price, pred_sequence_price, prices, pred_prices)
 
+            # Only volumes
             elif self.hparams.target_feature_volume is not None:
-                # Only volumes
                 sequence_volume, pred_sequence_volume = sequence, pred_sequence
+
+                # Plots: volumes, stylised facts
                 self.log_multistock_volumes(sequence_volume, pred_sequence_volume, volumes, pred_volumes)
-                self.log_metrics_volume(volumes, pred_volumes)
-                self.log_multistock_minmax_volumes(volumes, pred_volumes)
 
     def predict_autoregressively(
         self,
@@ -233,63 +246,39 @@ class MyLightningModule(pl.LightningModule):
         pred_sequence = pred_sequence.detach().cpu().numpy()
         return_dict = dict(pred_sequence=torch.Tensor(pred_sequence))
 
+        pred_sequence_price, last_price = None, None
+        pred_sequence_volume, last_volume = None, None
+
+        # If there are prices
+        if self.hparams.target_feature_price is not None:
+            last_price = prices[:, : self.hparams.n_stocks, self.hparams.encoder_length - 1].detach().cpu()
+            pred_sequence_price = pred_sequence[0, : self.hparams.n_stocks, :]
+
+        # If there are both prices and volumes
         if self.hparams.target_feature_price is not None and self.hparams.target_feature_volume is not None:
-            # Both prices and volumes
-            last_price = prices[:, :, self.hparams.encoder_length - 1].detach().cpu()
-            pred_prices = self.pipeline_price.inverse_transform(
-                pred_sequence[0, : self.hparams.n_stocks, :].T, last_price
-            ).T
-            return_dict["pred_prices"] = torch.Tensor(pred_prices)
             last_volume = volumes[:, :, self.hparams.encoder_length - 1].detach().cpu()
-            pred_volumes = self.pipeline_volume.inverse_transform(
-                pred_sequence[0, self.hparams.n_stocks :, :].T, last_volume
-            ).T
-            return_dict["pred_volumes"] = torch.Tensor(pred_volumes)
+            pred_sequence_volume = pred_sequence[0, self.hparams.n_stocks :, :]
 
-        elif self.hparams.target_feature_price is not None:
-            # Only prices
-            last_price = prices[:, :, self.hparams.encoder_length - 1].detach().cpu()
-            pred_prices = self.pipeline_price.inverse_transform(
-                pred_sequence[0, : self.hparams.n_stocks, :].T, last_price
-            ).T
-            return_dict["pred_prices"] = torch.Tensor(pred_prices)
+        # If there are only volumes
+        if self.hparams.target_feature_volume is not None:
+            last_volume = volumes[:, : self.hparams.n_stocks, self.hparams.encoder_length - 1].detach().cpu()
+            pred_sequence_volume = pred_sequence[0, : self.hparams.n_stocks, :]
 
-        elif self.hparams.target_feature_volume is not None:
-            # Only volumes
-            last_volume = volumes[:, :, self.hparams.encoder_length - 1].detach().cpu()
-            pred_volumes = self.pipeline_volume.inverse_transform(
-                pred_sequence[0, : self.hparams.n_stocks, :].T, last_volume
-            ).T
-            return_dict["pred_volumes"] = torch.Tensor(pred_volumes)
+        pred_prices = self.pipeline_price.inverse_transform(pred_sequence_price.T, last_price).T
+        return_dict["pred_prices"] = torch.Tensor(pred_prices)
+
+        pred_volumes = self.pipeline_volume.inverse_transform(pred_sequence_volume.T, last_volume).T
+        return_dict["pred_volumes"] = torch.Tensor(pred_volumes)
 
         return return_dict
 
-    def log_correlation(self, y_realOpred: torch.Tensor, realOpred: str) -> None:
-        correlations = corr(y_realOpred).squeeze()
+    def log_correlations(self, y_realOpred: torch.Tensor, realOpred: str) -> None:
+        d = get_correlations_dict(y_realOpred, realOpred, self.feature_names)
+        self.log_dict(d, on_step=False, on_epoch=True, prog_bar=False)
 
-        metric_names = [f"{realOpred}_correlation/{'-'.join(x)}" for x in combinations(self.feature_names, 2)]
-
-        self.log_dict(
-            {metric: correlation.item() for metric, correlation in zip(metric_names, correlations)},
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
-        )
-
-    def log_correlation_distance(self, y_real: torch.Tensor, y_pred: torch.Tensor, stage: str) -> None:
-        corr_real = corr(y_real)
-        corr_pred = corr(y_pred)
-
-        metric_names = [f"{stage}_corr_dist/{'-'.join(x)}" for x in combinations(self.feature_names, 2)]
-
-        corr_distances = self.mse(corr_real, corr_pred).mean(dim=0)
-
-        self.log_dict(
-            {metric: corr_dist.item() for metric, corr_dist in zip(metric_names, corr_distances)},
-            on_step=False,
-            on_epoch=True,
-            prog_bar=False,
-        )
+    def log_correlation_distances(self, y_real: torch.Tensor, y_pred: torch.Tensor, stage: str) -> None:
+        d = get_correlation_distances_dict(y_real, y_pred, stage, self.feature_names)
+        self.log_dict(d, on_step=False, on_epoch=True, prog_bar=False)
 
     def log_multistock_prices(
         self, sequence: torch.Tensor, pred_sequence: torch.Tensor, prices: torch.Tensor, pred_prices: torch.Tensor

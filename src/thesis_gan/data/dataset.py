@@ -1,11 +1,10 @@
 from pathlib import Path
-from typing import Dict, List
+from typing import List
 
 import hydra
 import numpy as np
 import omegaconf
 import pandas as pd
-import torch
 from torch.utils.data import Dataset
 
 from nn_core.common import PROJECT_ROOT
@@ -56,33 +55,6 @@ class StockDataset(Dataset):
             self.data = data_price
         elif target_feature_volume is not None:
             self.data = data_volume
-
-    def __len__(self) -> int:
-        # Length of dataset is similar to output size of convolution
-        return ((len(self.data) - (self.encoder_length + self.decoder_length)) // self.stride) + 1
-
-    def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
-
-        x_slice = slice(self.stride * index, self.stride * index + self.encoder_length)
-        y_slice = slice(
-            self.stride * index + self.encoder_length,
-            self.stride * index + self.encoder_length + self.decoder_length,
-        )
-
-        x = torch.as_tensor(self.data[x_slice].T, dtype=torch.float)
-        y = torch.as_tensor(self.data[y_slice].T, dtype=torch.float)
-
-        return_dict = dict(x=x, y=y)
-
-        if self.target_feature_price is not None:
-            x_prices = torch.as_tensor(self.prices[x_slice].T, dtype=torch.float)
-            return_dict["x_prices"] = x_prices
-
-        if self.target_feature_volume is not None:
-            x_volumes = torch.as_tensor(self.volumes[x_slice].T, dtype=torch.float)
-            return_dict["x_volumes"] = x_volumes
-
-        return return_dict
 
     def __repr__(self) -> str:
         return f"StockDataset({self.split=}, n_instances={len(self)})"

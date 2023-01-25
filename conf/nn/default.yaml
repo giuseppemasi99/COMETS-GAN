@@ -1,7 +1,10 @@
 dataset_type: "multistock"
+stock_names: [KO, PEP, NVDA, KSU]
+#stock_names: [AAPL, AMGN, AXP, BA, CAT, CRM, CSCO, CVX, DIS, GS, HD, HON, IBM, INTC, JNJ, JPM, KO, MCD, MMM, MRK, MSFT, NKE, PG, TRV, UNH, V, VZ, WBA, WMT]
+
 target_feature_price: mid_price
 target_feature_volume: volume
-stock_names: [KO, PEP, NVDA, KSU]
+
 encoder_length: 390
 decoder_length: 150
 
@@ -26,8 +29,9 @@ data:
 
   datasets:
     train:
-      _target_: thesis_gan.data.dataset.StockDataset
+      _target_: thesis_gan.data.dataset_train.StockDatasetTrain
       path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_train.csv
+      # path: ${oc.env:PROJECT_ROOT}/data/ohlc_DowJones/ohlc_DowJones_train.csv
       target_feature_price: ${nn.target_feature_price}
       target_feature_volume: ${nn.target_feature_volume}
       stock_names: ${nn.stock_names}
@@ -36,22 +40,26 @@ data:
       stride: 1
 
     val:
-      - _target_: thesis_gan.data.datasetinference.StockDatasetInference
+      - _target_: thesis_gan.data.dataset_inference.StockDatasetInference
         path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_val.csv
+        # path: ${oc.env:PROJECT_ROOT}/data/ohlc_DowJones/ohlc_DowJones_val.csv
         target_feature_price: ${nn.target_feature_price}
         target_feature_volume: ${nn.target_feature_volume}
         stock_names: ${nn.stock_names}
         encoder_length: 390
         decoder_length: 150
+        stride:
 
     test:
-      - _target_: thesis_gan.data.datasetinference.StockDatasetInference
+      - _target_: thesis_gan.data.dataset_inference.StockDatasetInference
         path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_test.csv
+        # path: ${oc.env:PROJECT_ROOT}/data/ohlc_DowJones/ohlc_DowJones_test.csv
         target_feature_price: ${nn.target_feature_price}
         target_feature_volume: ${nn.target_feature_volume}
         stock_names: ${nn.stock_names}
         encoder_length: 390
         decoder_length: 150
+        stride:
 
   gpus: ${train.trainer.gpus}
 
@@ -104,3 +112,4 @@ module:
   n_critic: 5
   val_log_freq: 5
   delta: 15
+  save_reals: True
