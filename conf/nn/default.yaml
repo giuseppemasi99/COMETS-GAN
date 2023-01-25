@@ -59,7 +59,7 @@ data:
         stock_names: ${nn.stock_names}
         encoder_length: 390
         decoder_length: 150
-        stride: 1
+        stride:
 
   gpus: ${train.trainer.gpus}
 
