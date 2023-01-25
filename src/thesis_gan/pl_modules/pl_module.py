@@ -8,20 +8,26 @@ import hydra
 import numpy as np
 import omegaconf
 import pytorch_lightning as pl
-import seaborn as sns
 import torch
 import wandb
 from matplotlib import pyplot as plt
-from matplotlib.lines import Line2D
-from scipy import stats
 from torch.optim import Optimizer
 
 from nn_core.common import PROJECT_ROOT
 from nn_core.model_logging import NNLogger
 
 import thesis_gan  # noqa
-from thesis_gan.common.metrics import get_correlation_distances_dict, get_correlations_dict
-from thesis_gan.common.utils import autocorrelation, compute_avg_log_returns, compute_avg_volumes
+from thesis_gan.common.metrics import (
+    get_correlation_distances_dict,
+    get_correlations_dict,
+    get_metrics_listdict,
+    get_plot_sf_absence_autocorrelation,
+    get_plot_sf_aggregational_gaussianity,
+    get_plot_sf_returns_distribution,
+    get_plot_sf_volatility_clustering,
+    get_plot_sf_volume_volatility_correlation,
+    get_plot_timeseries,
+)
 from thesis_gan.data.datamodule import MetaData
 
 pylogger = logging.getLogger(__name__)
@@ -158,8 +164,6 @@ class MyLightningModule(pl.LightningModule):
                 with open(path_file_reals, "wb") as handle:
                     pickle.dump(dict_with_reals, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-        # TODO: avoid the use of sequences, use directly the prices and/or the volumes
-
         # Retrieving the pred_sequence and the real sequence
         pred_sequence = dict_with_preds["pred_sequence"][:, :, : sequence.shape[2]]
         pred_sequence = pred_sequence.detach().cpu()
@@ -176,23 +180,37 @@ class MyLightningModule(pl.LightningModule):
 
         if self.current_epoch > 0:
 
-            # Retrieving prices, if there are
+            pred_prices = None
+            # If there are prices
             if self.hparams.target_feature_price is not None:
                 pred_prices = dict_with_preds["pred_prices"][:, : sequence.shape[1]]
-                pred_prices = pred_prices.detach().cpu().squeeze()
-                prices = prices.detach().cpu().squeeze()
+                pred_prices = pred_prices.detach().cpu().squeeze().numpy()
+                prices = prices.detach().cpu().squeeze().numpy()
 
-            # Retrieving volumes, if there are
+                # Plot prices
+                self.log_plot_timeseries(prices, pred_prices, "Prices")
+
+                # Plots stylised facts
+                if self.hparams.dataset_type == "multistock":
+                    self.log_plot_sf_returns_distribution(prices, pred_prices)
+                    self.log_plot_sf_aggregational_gaussianity(prices, pred_prices)
+                    self.log_plot_sf_absence_autocorrelation(prices, pred_prices)
+                    self.log_plot_sf_volatility_clustering(prices, pred_prices)
+
+            pred_volumes = None
+            # If there are volumes
             if self.hparams.target_feature_volume is not None:
                 pred_volumes = dict_with_preds["pred_volumes"][:, : sequence.shape[1]]
                 pred_volumes = pred_volumes.squeeze().detach().cpu().numpy()
                 volumes = volumes.squeeze().detach().cpu().numpy()
 
+                # Plot volumes
+                self.log_plot_timeseries(volumes, pred_volumes, "Volumes")
+
                 # Logging volumes metrics
                 self.log_metrics_volume(volumes, pred_volumes)
-                self.log_multistock_minmax_volumes(volumes, pred_volumes)
 
-            # Both prices and volumes
+            # If there are both prices and volumes
             if self.hparams.target_feature_price is not None and self.hparams.target_feature_volume is not None:
                 sequence_price, pred_sequence_price = (
                     sequence[: self.hparams.n_stocks],
@@ -203,26 +221,11 @@ class MyLightningModule(pl.LightningModule):
                     pred_sequence[self.hparams.n_stocks :],
                 )
 
-                # Plots: prices, volumes, stylised facts
-                self.log_multistock_prices(sequence_price, pred_sequence_price, prices, pred_prices)
-                self.log_multistock_volumes(sequence_volume, pred_sequence_volume, volumes, pred_volumes)
-                self.log_multistock_volume_volatility_correlation(
-                    sequence_price, pred_sequence_price, sequence_volume, pred_sequence_volume
-                )
-
-            # Only prices
-            elif self.hparams.target_feature_price is not None:
-                sequence_price, pred_sequence_price = sequence, pred_sequence
-
-                # Plots: prices, stylised facts
-                self.log_multistock_prices(sequence_price, pred_sequence_price, prices, pred_prices)
-
-            # Only volumes
-            elif self.hparams.target_feature_volume is not None:
-                sequence_volume, pred_sequence_volume = sequence, pred_sequence
-
-                # Plots: volumes, stylised facts
-                self.log_multistock_volumes(sequence_volume, pred_sequence_volume, volumes, pred_volumes)
+                # Plot stylised fact
+                if self.hparams.dataset_type == "multistock":
+                    self.log_plot_sf_volume_volatility_correlation(
+                        sequence_price, pred_sequence_price, sequence_volume, pred_sequence_volume
+                    )
 
     def predict_autoregressively(
         self,
@@ -280,276 +283,95 @@ class MyLightningModule(pl.LightningModule):
         d = get_correlation_distances_dict(y_real, y_pred, stage, self.feature_names)
         self.log_dict(d, on_step=False, on_epoch=True, prog_bar=False)
 
-    def log_multistock_prices(
-        self, sequence: torch.Tensor, pred_sequence: torch.Tensor, prices: torch.Tensor, pred_prices: torch.Tensor
+    def log_plot_timeseries(
+        self,
+        real: np.ndarray,
+        pred: np.ndarray,
+        price_o_volume: str,
     ) -> None:
-
-        history_indexes = np.arange(self.hparams.encoder_length)
-        continuation_indexes = np.arange(self.hparams.encoder_length, prices.shape[-1])
-
-        history = sequence[:, : self.hparams.encoder_length].T
-        reals = sequence[:, self.hparams.encoder_length :].T
-        preds = pred_sequence[:, self.hparams.encoder_length :].T
-        history_and_reals = np.concatenate((history, reals), axis=0)
-        history_and_preds = np.concatenate((history, preds), axis=0)
-
-        fig, ax = plt.subplots(4, self.hparams.n_stocks, figsize=(7 * self.hparams.n_stocks, 10))
-        legend_elements = [
-            Line2D([0], [0], color="C0", lw=2, label="Observed"),
-            Line2D([0], [0], color="C1", lw=2, label="Real continuation"),
-            Line2D([0], [0], color="C2", lw=2, label="Predicted continuation"),
-        ]
-
-        for target_idx in range(self.hparams.n_stocks):
-            stock_name = self.hparams.stock_names[target_idx]
-
-            # Plot of prices
-            title = f"{stock_name} - Price"
-            ax[0, target_idx].set_title(title)
-
-            ax[0, target_idx].plot(
-                history_indexes,
-                prices[target_idx, : self.hparams.encoder_length],
-                color="C0",
-            )
-            ax[0, target_idx].plot(
-                continuation_indexes,
-                prices[target_idx, self.hparams.encoder_length :],
-                color="C1",
-            )
-            ax[0, target_idx].plot(
-                continuation_indexes,
-                pred_prices[target_idx, self.hparams.encoder_length :],
-                color="C2",
-            )
-
-            # Returns distributions
-            title = f"{stock_name} - Returns"
-            ax[1, target_idx].set_title(title)
-
-            sns.histplot(
-                reals[:, target_idx],
-                color="C1",
-                kde=True,
-                stat="density",
-                linewidth=0,
-                ax=ax[1, target_idx],
-            )
-            sns.histplot(
-                preds[:, target_idx],
-                color="C2",
-                kde=True,
-                stat="density",
-                linewidth=0,
-                ax=ax[1, target_idx],
-            )
-
-            # Autocorrelation distributions
-            title = f"{stock_name} - Autocorrelation"
-            ax[2, target_idx].set_title(title)
-
-            autocorr_real = autocorrelation(history_and_reals[:, target_idx])
-            autocorr_preds = autocorrelation(history_and_preds[:, target_idx])
-            sns.histplot(
-                autocorr_real,
-                color="C1",
-                kde=True,
-                stat="density",
-                linewidth=0,
-                ax=ax[2, target_idx],
-            )
-            sns.histplot(
-                autocorr_preds,
-                color="C2",
-                kde=True,
-                stat="density",
-                linewidth=0,
-                ax=ax[2, target_idx],
-            )
-
-            # Volatility clustering
-            title = f"{stock_name} - Volatility clustering"
-            ax[3, target_idx].set_title(title)
-
-            abs_autocorr_real = autocorrelation(np.abs(history_and_reals[:, target_idx]))
-            abs_autocorr_preds = autocorrelation(np.abs(history_and_preds[:, target_idx]))
-
-            ax[3, target_idx].plot(np.zeros(len(abs_autocorr_real)), color="black")
-            ax[3, target_idx].plot(abs_autocorr_real, color="C1")
-            ax[3, target_idx].plot(abs_autocorr_preds, color="C2")
-
-        fig.legend(handles=legend_elements, loc="upper right", ncol=1)
-        fig.suptitle(f"Epoch {self.current_epoch}")
-        fig.tight_layout()
-        title = f"Prices - Epoch {self.current_epoch}"
+        fig = get_plot_timeseries(
+            real, pred, self.hparams.dataset_type, self.hparams.stock_names, self.hparams.encoder_length, price_o_volume
+        )
+        title = f"{price_o_volume} - Epoch {self.current_epoch}"
         self.logger.experiment.log({title: wandb.Image(fig)})
-
         plt.close(fig)
 
-    def log_multistock_volumes(
-        self, sequence: torch.Tensor, pred_sequence: torch.Tensor, volumes: torch.Tensor, pred_volumes: torch.Tensor
+    def log_plot_sf_returns_distribution(
+        self,
+        prices: np.ndarray,
+        pred_prices: np.ndarray,
     ) -> None:
-
-        history_indexes = np.arange(self.hparams.encoder_length)
-        continuation_indexes = np.arange(self.hparams.encoder_length, volumes.shape[-1])
-
-        history = sequence[:, : self.hparams.encoder_length].T
-        reals = sequence[:, self.hparams.encoder_length :].T
-        preds = pred_sequence[:, self.hparams.encoder_length :].T
-        history_and_reals = np.concatenate((history, reals), axis=0)
-        history_and_preds = np.concatenate((history, preds), axis=0)
-
-        fig, ax = plt.subplots(2, self.hparams.n_stocks, figsize=(7 * self.hparams.n_stocks, 10))
-        legend_elements = [
-            Line2D([0], [0], color="C0", lw=2, label="Observed"),
-            Line2D([0], [0], color="C1", lw=2, label="Real continuation"),
-            Line2D([0], [0], color="C2", lw=2, label="Predicted continuation"),
-        ]
-
-        for target_idx in range(self.hparams.n_stocks):
-            stock_name = self.hparams.stock_names[target_idx]
-
-            # Plot of volumes
-            title = f"{stock_name} - Volume"
-            ax[0, target_idx].set_title(title)
-
-            ax[0, target_idx].plot(
-                history_indexes,
-                volumes[target_idx, : self.hparams.encoder_length],
-                color="C0",
-            )
-            ax[0, target_idx].plot(
-                continuation_indexes,
-                volumes[target_idx, self.hparams.encoder_length :],
-                color="C1",
-            )
-            ax[0, target_idx].plot(
-                continuation_indexes,
-                pred_volumes[target_idx, self.hparams.encoder_length :],
-                color="C2",
-            )
-
-            # Autocorrelation distributions
-            title = f"{stock_name} - Autocorrelation"
-            ax[1, target_idx].set_title(title)
-
-            autocorr_real = autocorrelation(history_and_reals[:, target_idx])
-            autocorr_preds = autocorrelation(history_and_preds[:, target_idx])
-            sns.histplot(
-                autocorr_real,
-                color="C1",
-                kde=True,
-                stat="density",
-                linewidth=0,
-                ax=ax[1, target_idx],
-            )
-            sns.histplot(
-                autocorr_preds,
-                color="C2",
-                kde=True,
-                stat="density",
-                linewidth=0,
-                ax=ax[1, target_idx],
-            )
-
-        fig.legend(handles=legend_elements, loc="upper right", ncol=1)
-        fig.suptitle(f"Epoch {self.current_epoch}")
-        fig.tight_layout()
-        title = f"Volumes - Epoch {self.current_epoch}"
+        fig = get_plot_sf_returns_distribution(
+            prices,
+            pred_prices,
+            self.hparams.stock_names,
+        )
+        title = f"Returns distribution - Epoch {self.current_epoch}"
         self.logger.experiment.log({title: wandb.Image(fig)})
+        plt.close(fig)
 
+    def log_plot_sf_aggregational_gaussianity(
+        self,
+        prices: np.ndarray,
+        pred_prices: np.ndarray,
+    ) -> None:
+        for stock_index, stock_name in enumerate(self.hparams.stock_names):
+            fig = get_plot_sf_aggregational_gaussianity(
+                prices[stock_index],
+                pred_prices[stock_index],
+                stock_name,
+            )
+            title = f"Distribution of returns with increased time scale - {stock_name} - Epoch {self.current_epoch}"
+            self.logger.experiment.log({title: wandb.Image(fig)})
+            plt.close(fig)
+
+    def log_plot_sf_absence_autocorrelation(
+        self,
+        prices: np.ndarray,
+        pred_prices: np.ndarray,
+    ) -> None:
+        for stock_index, stock_name in enumerate(self.hparams.stock_names):
+            fig = get_plot_sf_absence_autocorrelation(
+                prices[stock_index],
+                pred_prices[stock_index],
+                stock_name,
+            )
+            title = f"Returns Autocorrelations - {stock_name} - Epoch {self.current_epoch}"
+            self.logger.experiment.log({title: wandb.Image(fig)})
+            plt.close(fig)
+
+    def log_plot_sf_volatility_clustering(
+        self,
+        prices: np.ndarray,
+        pred_prices: np.ndarray,
+    ) -> None:
+        fig = get_plot_sf_volatility_clustering(
+            prices,
+            pred_prices,
+            self.hparams.stock_names,
+        )
+        title = f"Returns Autocorrelations - Epoch {self.current_epoch}"
+        self.logger.experiment.log({title: wandb.Image(fig)})
+        plt.close(fig)
+
+    def log_plot_sf_volume_volatility_correlation(
+        self, sequence_price, pred_sequence_price, sequence_volume, pred_sequence_volume
+    ) -> None:
+        fig = get_plot_sf_volume_volatility_correlation(
+            sequence_price,
+            pred_sequence_price,
+            sequence_volume,
+            pred_sequence_volume,
+            self.hparams.stock_names,
+            self.hparams.delta,
+        )
+        title = f"Volume-Volatility Correlation - Epoch {self.current_epoch}"
+        self.logger.experiment.log({title: wandb.Image(fig)})
         plt.close(fig)
 
     def log_metrics_volume(self, ts_real: np.ndarray, ts_pred: np.ndarray) -> None:
-
-        stat_names = ["Mean", "Std", "Kurtosis", "Skew"]
-        stat_funcs = [np.mean, np.std, stats.kurtosis, stats.skew]
-
-        for stat_name, stat_func in zip(stat_names, stat_funcs):
-            d = dict()
-
-            metrics_real = stat_func(ts_real, axis=1)
-            metric_names = [f"Real Volume: {stat_name}/{stock_name}" for stock_name in self.hparams.stock_names]
-            d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_real)})
-
-            metrics_pred = stat_func(ts_pred, axis=1)
-            metric_names = [f"Pred Volume: {stat_name}/{stock_name}" for stock_name in self.hparams.stock_names]
-            d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_pred)})
-
+        for d in get_metrics_listdict(ts_real, ts_pred, self.hparams.stock_names):
             self.log_dict(d, on_step=False, on_epoch=True, prog_bar=False)
-
-    def log_multistock_minmax_volumes(self, ts_real: np.ndarray, ts_pred: np.ndarray) -> None:
-        d = dict()
-
-        metrics_real = ts_real.min(axis=1)
-        metric_names = [f"Real Volume: Min/{stock_name}" for stock_name in self.hparams.stock_names]
-        d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_real)})
-
-        metrics_pred = ts_pred.min(axis=1)
-        metric_names = [f"Pred Volume: Min/{stock_name}" for stock_name in self.hparams.stock_names]
-        d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_pred)})
-
-        metrics_real = ts_real.max(axis=1)
-        metric_names = [f"Real Volume: Max/{stock_name}" for stock_name in self.hparams.stock_names]
-        d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_real)})
-
-        metrics_pred = ts_pred.max(axis=1)
-        metric_names = [f"Pred Volume: Max/{stock_name}" for stock_name in self.hparams.stock_names]
-        d.update({metric_name: metric for metric_name, metric in zip(metric_names, metrics_pred)})
-
-        self.log_dict(d, on_step=False, on_epoch=True, prog_bar=False)
-
-    def log_multistock_volume_volatility_correlation(
-        self,
-        sequence_price: torch.Tensor,
-        pred_sequence_price: torch.Tensor,
-        sequence_volume: torch.Tensor,
-        pred_sequence_volume: torch.Tensor,
-    ) -> None:
-        sequence_price = sequence_price.numpy().T
-        pred_sequence_price = pred_sequence_price.numpy().T
-        sequence_volume = sequence_volume.numpy().T
-        pred_sequence_volume = pred_sequence_volume.numpy().T
-
-        real_avg_log_returns = compute_avg_log_returns(sequence_price, self.hparams.delta)
-        real_avg_volumes = compute_avg_volumes(sequence_volume, self.hparams.delta)
-
-        pred_avg_log_returns = compute_avg_log_returns(pred_sequence_price, self.hparams.delta)
-        pred_avg_volumes = compute_avg_volumes(pred_sequence_volume, self.hparams.delta)
-
-        fig, ax = plt.subplots(2, self.hparams.n_stocks, figsize=(7 * self.hparams.n_stocks, 10))
-
-        for target_idx in range(self.hparams.n_stocks):
-            stock_name = self.hparams.stock_names[target_idx]
-
-            # Real volume-volatility correlation
-            title = f"{stock_name} - Real"
-            ax[0, target_idx].set_title(title)
-            ax[0, target_idx].scatter(
-                real_avg_log_returns[target_idx],
-                real_avg_volumes[target_idx],
-                color="C0",
-            )
-            ax[0, target_idx].set_xlabel("Avg log-returns")
-            ax[0, target_idx].set_ylabel("Avg log-volumes")
-
-            # Pred volume-volatility correlation
-            title = f"{stock_name} - Pred"
-            ax[1, target_idx].set_title(title)
-            ax[1, target_idx].scatter(
-                pred_avg_log_returns[target_idx],
-                pred_avg_volumes[target_idx],
-                color="C1",
-            )
-            ax[1, target_idx].set_xlabel("Avg log-returns")
-            ax[1, target_idx].set_ylabel("Avg log-volumes")
-
-        fig.suptitle(f"Epoch {self.current_epoch}")
-        fig.tight_layout()
-        title = f"Volume-Volatility Corr - Epoch {self.current_epoch}"
-        self.logger.experiment.log({title: wandb.Image(fig)})
-
-        plt.close(fig)
 
     def configure_optimizers(self) -> Tuple[Dict[str, Optimizer], Dict[str, Optimizer]]:
         """Choose what optimizers and learning-rate schedulers to use in your optimization.
@@ -598,9 +420,9 @@ class MyLightningModule(pl.LightningModule):
 
         fig, ax = plt.subplots(1, self.hparams.n_features, figsize=(7 * self.hparams.n_features, 4))
         legend_elements = [
-            Line2D([0], [0], color="C0", lw=2, label="Observed"),
-            Line2D([0], [0], color="C1", lw=2, label="Real continuation"),
-            Line2D([0], [0], color="C2", lw=2, label="Predicted continuation"),
+            # Line2D([0], [0], color="C0", lw=2, label="Observed"),
+            # Line2D([0], [0], color="C1", lw=2, label="Real continuation"),
+            # Line2D([0], [0], color="C2", lw=2, label="Predicted continuation"),
         ]
 
         for target_idx in range(self.hparams.n_features):
