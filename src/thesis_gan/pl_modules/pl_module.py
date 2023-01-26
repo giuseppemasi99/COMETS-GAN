@@ -256,22 +256,22 @@ class MyLightningModule(pl.LightningModule):
         if self.hparams.target_feature_price is not None:
             last_price = prices[:, : self.hparams.n_stocks, self.hparams.encoder_length - 1].detach().cpu()
             pred_sequence_price = pred_sequence[0, : self.hparams.n_stocks, :]
+            pred_prices = self.pipeline_price.inverse_transform(pred_sequence_price.T, last_price).T
+            return_dict["pred_prices"] = torch.Tensor(pred_prices)
 
         # If there are both prices and volumes
-        if self.hparams.target_feature_price is not None and self.hparams.target_feature_volume is not None:
+        elif self.hparams.target_feature_price is not None and self.hparams.target_feature_volume is not None:
             last_volume = volumes[:, :, self.hparams.encoder_length - 1].detach().cpu()
             pred_sequence_volume = pred_sequence[0, self.hparams.n_stocks :, :]
 
         # If there are only volumes
-        if self.hparams.target_feature_volume is not None:
+        elif self.hparams.target_feature_volume is not None:
             last_volume = volumes[:, : self.hparams.n_stocks, self.hparams.encoder_length - 1].detach().cpu()
             pred_sequence_volume = pred_sequence[0, : self.hparams.n_stocks, :]
 
-        pred_prices = self.pipeline_price.inverse_transform(pred_sequence_price.T, last_price).T
-        return_dict["pred_prices"] = torch.Tensor(pred_prices)
-
-        pred_volumes = self.pipeline_volume.inverse_transform(pred_sequence_volume.T, last_volume).T
-        return_dict["pred_volumes"] = torch.Tensor(pred_volumes)
+        if self.hparams.target_feature_volume is not None:
+            pred_volumes = self.pipeline_volume.inverse_transform(pred_sequence_volume.T, last_volume).T
+            return_dict["pred_volumes"] = torch.Tensor(pred_volumes)
 
         return return_dict
 
