@@ -1,6 +1,5 @@
 dataset_type: "multistock"
 stock_names: [KO, PEP, NVDA, KSU]
-#stock_names: [AAPL, AMGN, AXP, BA, CAT, CRM, CSCO, CVX, DIS, GS, HD, HON, IBM, INTC, JNJ, JPM, KO, MCD, MMM, MRK, MSFT, NKE, PG, TRV, UNH, V, VZ, WBA, WMT]
 
 target_feature_price: mid_price
 target_feature_volume: volume
@@ -74,42 +73,32 @@ data:
     test: 1
 
 module:
-  _target_: thesis_gan.pl_modules.pl_module.MyLightningModule
+  _target_: thesis_gan.pl_modules.timegan_pl_module.MyLightningModule
 
   dataset_type: ${nn.dataset_type}
   step_to_skip: 0
 
-  optimizer_g:
-    _target_: torch.optim.RMSprop
-    lr: 1e-4
+  optimizer_embedder:
+    _target_: torch.optim.Adam
+    lr: 0.0035
 
-  optimizer_d:
-    _target_: torch.optim.RMSprop
-    lr: 3e-4
+  optimizer_recoverer:
+    _target_: torch.optim.Adam
+    lr: 0.01
 
-  generator:
-    #_target_: thesis_gan.modules.generator.rnn.RNNGenerator
-    _target_: thesis_gan.modules.generator.tcn.TCNGenerator
-    encoder_length: ${nn.encoder_length}
-    decoder_length: ${nn.decoder_length}
-    hidden_dim: 256
-    dropout: 0.2
+  embedder:
+    _target_: thesis_gan.modules.timegan.embedder
+    dropout: 0
+    hidden_dim: 128
 
-  discriminator:
-    _target_: thesis_gan.modules.discriminator.cnn.CNNDiscriminator
-    encoder_length: ${nn.encoder_length}
-    decoder_length: ${nn.decoder_length}
-    hidden_dim: 256
-    dropout: 0.2
-    compute_corr: True
-    alpha:
+  recoverer:
+    _target_: thesis_gan.modules.timegan.recoverer
+    hidden_dim: 128
 
   target_feature_price: ${nn.target_feature_price}
   target_feature_volume: ${nn.target_feature_volume}
   stock_names: ${nn.stock_names}
   encoder_length: ${nn.encoder_length}
   decoder_length: ${nn.decoder_length}
-  n_critic: 5
   val_log_freq: 5
-  delta: 15
   save_reals: True
