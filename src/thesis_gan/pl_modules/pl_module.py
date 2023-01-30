@@ -350,7 +350,7 @@ class MyLightningModule(pl.LightningModule):
             pred_prices,
             self.hparams.stock_names,
         )
-        title = f"Returns Autocorrelations - Epoch {self.current_epoch}"
+        title = f"Volatility Clustering - Epoch {self.current_epoch}"
         self.logger.experiment.log({title: wandb.Image(fig)})
         plt.close(fig)
 

@@ -2,7 +2,7 @@ dataset_type: "multistock"
 stock_names: [KO, PEP, NVDA, KSU]
 #stock_names: [AAPL, AMGN, AXP, BA, CAT, CRM, CSCO, CVX, DIS, GS, HD, HON, IBM, INTC, JNJ, JPM, KO, MCD, MMM, MRK, MSFT, NKE, PG, TRV, UNH, V, VZ, WBA, WMT]
 
-target_feature_price: mid_price
+target_feature_price: #mid_price
 target_feature_volume: volume
 
 encoder_length: 390
@@ -23,7 +23,7 @@ data:
     _target_: thesis_gan.data.pipeline.ScalerPipeline
     scaler:
       _target_: sklearn.preprocessing.MinMaxScaler
-      feature_range: [-1, 1]
+      feature_range: ${as_tuple:-1,1} #[-1, 1]
     round: True
     log: True
 

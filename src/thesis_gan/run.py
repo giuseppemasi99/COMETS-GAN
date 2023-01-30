@@ -5,7 +5,7 @@ import dotenv
 import hydra
 import omegaconf
 import pytorch_lightning as pl
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Callback
 
 from nn_core.callbacks import NNTemplateCore
@@ -107,6 +107,11 @@ def run(cfg: DictConfig) -> str:
 
 @hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default", version_base=None)
 def main(cfg: omegaconf.DictConfig):
+    def resolve_tuple(*args):
+        return tuple(args)
+
+    OmegaConf.register_new_resolver("as_tuple", resolve_tuple)
+
     run(cfg)
 
 
