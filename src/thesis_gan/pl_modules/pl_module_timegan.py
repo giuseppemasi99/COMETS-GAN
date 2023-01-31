@@ -221,7 +221,7 @@ class MyLightningModule(PLModule):
                 self.manual_backward(D_loss)
                 opt_discriminator.step()
 
-    def __validation_n_test_epoch_end(self, samples: Sequence[Dict]) -> None:
+    def validation_n_test_epoch_end(self, samples: Sequence[Dict]) -> None:
 
         # Aggregation of the batches
         x, prices, volumes = list(), list(), list()

@@ -67,10 +67,10 @@ class PLModule(pl.LightningModule):
         return batch
 
     def validation_epoch_end(self, samples: Sequence[Dict]) -> None:
-        self.__validation_n_test_epoch_end(samples)
+        self.validation_n_test_epoch_end(samples)
 
     def test_epoch_end(self, samples: Sequence[Dict]) -> None:
-        self.__validation_n_test_epoch_end(samples)
+        self.validation_n_test_epoch_end(samples)
 
     def log_correlations(self, y_realOpred: torch.Tensor, realOpred: str) -> None:
         d = get_correlations_dict(y_realOpred, realOpred, self.feature_names)

@@ -49,6 +49,7 @@ class MyLightningModule(PLModule):
         return out
 
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int, optimizer_idx: int) -> torch.Tensor:
+        exit()
         x = batch["x"]
         y_real = batch["y"]
 
@@ -75,7 +76,7 @@ class MyLightningModule(PLModule):
             self.log_dict({"loss/disc": d_loss}, on_step=True, on_epoch=True, prog_bar=True)
             return d_loss
 
-    def __validation_n_test_epoch_end(self, samples: Sequence[Dict]) -> None:
+    def validation_n_test_epoch_end(self, samples: Sequence[Dict]) -> None:
 
         # Aggregation of the batches
         sequence, prices, volumes = list(), list(), list()
