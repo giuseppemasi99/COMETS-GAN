@@ -8,7 +8,7 @@ from pytorch_lightning import LightningModule
 from nn_core.serialization import NNCheckpointIO
 from tests.conftest import load_checkpoint
 
-from thesis_gan.pl_modules.pl_module import MyLightningModule
+from thesis_gan.pl_modules.pl_module_conv import MyLightningModule
 from thesis_gan.run import run
 
 

@@ -74,7 +74,7 @@ data:
     test: 1
 
 module:
-  _target_: thesis_gan.pl_modules.pl_module.MyLightningModule
+  _target_: thesis_gan.pl_modules.pl_module_conv.MyLightningModule
 
   dataset_type: ${nn.dataset_type}
   step_to_skip: 0

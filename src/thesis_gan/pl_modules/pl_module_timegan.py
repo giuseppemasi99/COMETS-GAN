@@ -2,60 +2,29 @@ import logging
 import math
 import os
 import pickle
-from typing import Any, Dict, Optional, Sequence
+from typing import Dict, Optional, Sequence
 
 import hydra
-import numpy as np
 import omegaconf
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-import wandb
-from matplotlib import pyplot as plt
 
 from nn_core.common import PROJECT_ROOT
 from nn_core.model_logging import NNLogger
 
 import thesis_gan  # noqa
-from thesis_gan.common.metrics import (
-    get_correlation_distances_dict,
-    get_correlations_dict,
-    get_metrics_listdict,
-    get_plot_sf_absence_autocorrelation,
-    get_plot_sf_aggregational_gaussianity,
-    get_plot_sf_volatility_clustering,
-    get_plot_sf_volume_volatility_correlation,
-    get_plot_timeseries,
-)
 from thesis_gan.data.datamodule import MetaData
+from thesis_gan.pl_modules.pl_module import PLModule
 
 pylogger = logging.getLogger(__name__)
 
 
-class MyLightningModule(pl.LightningModule):
+class MyLightningModule(PLModule):
     logger: NNLogger
 
     def __init__(self, metadata: Optional[MetaData] = None, *args, **kwargs) -> None:
         super().__init__()
-
-        # populate self.hparams with args and kwargs automagically!
-        # We want to skip metadata since it is saved separately by the
-        self.save_hyperparameters(logger=False, ignore=("metadata",))
-
-        self.metadata = metadata
-
-        if self.hparams.dataset_type == "multistock":
-            self.hparams.n_stocks = len(self.hparams.stock_names)
-            self.feature_names = list()
-            if self.hparams.target_feature_price is not None:
-                self.feature_names.extend(
-                    [stock_name + "_" + self.hparams.target_feature_price for stock_name in self.hparams.stock_names]
-                )
-            if self.hparams.target_feature_volume is not None:
-                self.feature_names.extend(
-                    [stock_name + "_" + self.hparams.target_feature_volume for stock_name in self.hparams.stock_names]
-                )
-            self.hparams.n_features = len(self.feature_names)
 
         self.embedder = hydra.utils.instantiate(
             self.hparams.embedder,
@@ -85,9 +54,6 @@ class MyLightningModule(pl.LightningModule):
             self.hparams.discriminator,
             _recursive_=False,
         )
-
-        self.pipeline_price = metadata.data_pipeline_price
-        self.pipeline_volume = metadata.data_pipeline_volume
 
         self.mse = nn.MSELoss(reduction="mean")
         self.bcewl = nn.BCEWithLogitsLoss()
@@ -257,18 +223,6 @@ class MyLightningModule(pl.LightningModule):
                 self.manual_backward(D_loss)
                 opt_discriminator.step()
 
-    def validation_step(self, batch: Any, batch_idx: int) -> Any:
-        return batch
-
-    def test_step(self, batch: Any, batch_idx: int) -> Any:
-        return batch
-
-    def validation_epoch_end(self, samples: Sequence[Dict]) -> None:
-        self.__validation_n_test_epoch_end(samples)
-
-    def test_epoch_end(self, samples: Sequence[Dict]) -> None:
-        self.__validation_n_test_epoch_end(samples)
-
     def __validation_n_test_epoch_end(self, samples: Sequence[Dict]) -> None:
 
         # Aggregation of the batches
@@ -401,90 +355,6 @@ class MyLightningModule(pl.LightningModule):
             return_dict["pred_volumes"] = torch.Tensor(pred_volumes)
 
         return return_dict
-
-    def log_correlation_distances(self, x: torch.Tensor, x_hat: torch.Tensor, stage: str) -> None:
-        d = get_correlation_distances_dict(x, x_hat, stage, self.feature_names)
-        self.log_dict(d, on_step=False, on_epoch=True, prog_bar=False)
-
-    def log_correlations(self, y_realOpred: torch.Tensor, realOpred: str) -> None:
-        d = get_correlations_dict(y_realOpred, realOpred, self.feature_names)
-        self.log_dict(d, on_step=False, on_epoch=True, prog_bar=False)
-
-    def log_plot_timeseries(
-        self,
-        real: np.ndarray,
-        pred: np.ndarray,
-        price_o_volume: str,
-    ) -> None:
-        fig = get_plot_timeseries(
-            real, pred, self.hparams.dataset_type, self.hparams.stock_names, self.hparams.encoder_length, price_o_volume
-        )
-        title = f"{price_o_volume} - Epoch {self.current_epoch}"
-        self.logger.experiment.log({title: wandb.Image(fig)})
-        plt.close(fig)
-
-    def log_plot_sf_aggregational_gaussianity(
-        self,
-        prices: np.ndarray,
-        pred_prices: np.ndarray,
-    ) -> None:
-        for stock_index, stock_name in enumerate(self.hparams.stock_names):
-            fig = get_plot_sf_aggregational_gaussianity(
-                prices[stock_index],
-                pred_prices[stock_index],
-                stock_name,
-            )
-            title = f"Distribution of returns with increased time scale - {stock_name} - Epoch {self.current_epoch}"
-            self.logger.experiment.log({title: wandb.Image(fig)})
-            plt.close(fig)
-
-    def log_plot_sf_absence_autocorrelation(
-        self,
-        prices: np.ndarray,
-        pred_prices: np.ndarray,
-    ) -> None:
-        for stock_index, stock_name in enumerate(self.hparams.stock_names):
-            fig = get_plot_sf_absence_autocorrelation(
-                prices[stock_index],
-                pred_prices[stock_index],
-                stock_name,
-            )
-            title = f"Returns Autocorrelations - {stock_name} - Epoch {self.current_epoch}"
-            self.logger.experiment.log({title: wandb.Image(fig)})
-            plt.close(fig)
-
-    def log_plot_sf_volatility_clustering(
-        self,
-        prices: np.ndarray,
-        pred_prices: np.ndarray,
-    ) -> None:
-        fig = get_plot_sf_volatility_clustering(
-            prices,
-            pred_prices,
-            self.hparams.stock_names,
-        )
-        title = f"Volatility Clustering - Epoch {self.current_epoch}"
-        self.logger.experiment.log({title: wandb.Image(fig)})
-        plt.close(fig)
-
-    def log_plot_sf_volume_volatility_correlation(
-        self, sequence_price, pred_sequence_price, sequence_volume, pred_sequence_volume
-    ) -> None:
-        fig = get_plot_sf_volume_volatility_correlation(
-            sequence_price,
-            pred_sequence_price,
-            sequence_volume,
-            pred_sequence_volume,
-            self.hparams.stock_names,
-            self.hparams.delta,
-        )
-        title = f"Volume-Volatility Correlation - Epoch {self.current_epoch}"
-        self.logger.experiment.log({title: wandb.Image(fig)})
-        plt.close(fig)
-
-    def log_metrics_volume(self, ts_real: np.ndarray, ts_pred: np.ndarray) -> None:
-        for d in get_metrics_listdict(ts_real, ts_pred, self.hparams.stock_names):
-            self.log_dict(d, on_step=False, on_epoch=True, prog_bar=False)
 
     def __compute_loss_recontruction(self, x, x_tilde):
         return self.mse(x, x_tilde)

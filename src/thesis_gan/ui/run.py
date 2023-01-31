@@ -6,7 +6,7 @@ import wandb
 from nn_core.serialization import load_model
 from nn_core.ui import select_checkpoint
 
-from thesis_gan.pl_modules.pl_module import MyLightningModule
+from thesis_gan.pl_modules.pl_module_conv import MyLightningModule
 
 
 @st.cache(allow_output_mutation=True)
