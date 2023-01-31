@@ -78,6 +78,7 @@ module:
 
   dataset_type: ${nn.dataset_type}
   step_to_skip: 0
+  model: 'conv'
 
   optimizer_g:
     _target_: torch.optim.RMSprop

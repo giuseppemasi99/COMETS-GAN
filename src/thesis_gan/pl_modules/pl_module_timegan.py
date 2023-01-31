@@ -1,7 +1,5 @@
 import logging
 import math
-import os
-import pickle
 from typing import Dict, Optional, Sequence
 
 import hydra
@@ -247,18 +245,7 @@ class MyLightningModule(PLModule):
         dict_with_preds = self.predict_autoregressively(prediction_length=x.shape[2])
 
         # Saving preds and reals in pickle files
-        if hasattr(self.logger, "run_dir"):
-            if not os.path.exists(self.logger.run_dir):
-                os.makedirs(self.logger.run_dir)
-
-            path_file_preds = f"{self.logger.run_dir}/preds_timegan_epoch={self.current_epoch}-target_price={self.hparams.target_feature_price}-target_volume={self.hparams.target_feature_volume}.pickle"
-            with open(path_file_preds, "wb") as handle:
-                pickle.dump(dict_with_preds, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-            path_file_reals = f"{self.logger.run_dir}/reals_timegan.pickle"
-            if self.hparams.save_reals is True and not os.path.exists(path_file_reals):
-                with open(path_file_reals, "wb") as handle:
-                    pickle.dump(dict_with_reals, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        self.save_files(dict_with_reals, dict_with_preds)
 
         # Retrieving the pred_sequence and the real sequence
         x_hat = dict_with_preds["x_hat"]

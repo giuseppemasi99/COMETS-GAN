@@ -72,6 +72,7 @@ module:
   _target_: thesis_gan.pl_modules.pl_module_timegan.MyLightningModule
 
   dataset_type: ${nn.timegan.dataset_type}
+  model: 'timegan'
 
   optimizer_embedder:
     _target_: torch.optim.Adam
