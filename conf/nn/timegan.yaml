@@ -2,16 +2,15 @@ dataset_type: "multistock"
 stock_names: [KO, PEP, NVDA, KSU]
 
 target_feature_price: mid_price
-target_feature_volume: volume
+target_feature_volume: #volume
 
-encoder_length: 390
-decoder_length: 150
+sequence_length: 100
 
 
 data:
   _target_: thesis_gan.data.datamodule.MyDataModule
 
-  dataset_type: ${nn.dataset_type}
+  dataset_type: ${nn.timegan.dataset_type}
 
   data_pipeline_price:
     _target_: thesis_gan.data.pipeline.LogReturnPipeline
@@ -28,44 +27,41 @@ data:
 
   datasets:
     train:
-      _target_: thesis_gan.data.dataset_train.StockDatasetTrain
+      _target_: thesis_gan.data.dataset_timegan.StockDatasetTimeGAN
       path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_train.csv
       # path: ${oc.env:PROJECT_ROOT}/data/ohlc_DowJones/ohlc_DowJones_train.csv
       target_feature_price: ${nn.target_feature_price}
       target_feature_volume: ${nn.target_feature_volume}
       stock_names: ${nn.stock_names}
-      encoder_length: 390
-      decoder_length: 150
+      sequence_length: ${nn.timegan.sequence_length}
       stride: 1
 
     val:
-      - _target_: thesis_gan.data.dataset_inference.StockDatasetInference
+      - _target_: thesis_gan.data.dataset_timegan.StockDatasetTimeGAN
         path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_val.csv
         # path: ${oc.env:PROJECT_ROOT}/data/ohlc_DowJones/ohlc_DowJones_val.csv
         target_feature_price: ${nn.target_feature_price}
         target_feature_volume: ${nn.target_feature_volume}
         stock_names: ${nn.stock_names}
-        encoder_length: 390
-        decoder_length: 150
-        stride:
+        sequence_length: ${nn.timegan.sequence_length}
+        stride: ${nn.timegan.sequence_length}
 
     test:
-      - _target_: thesis_gan.data.dataset_inference.StockDatasetInference
+      - _target_: thesis_gan.data.dataset_timegan.StockDatasetTimeGAN
         path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_test.csv
         # path: ${oc.env:PROJECT_ROOT}/data/ohlc_DowJones/ohlc_DowJones_test.csv
-        target_feature_price: ${nn.target_feature_price}
-        target_feature_volume: ${nn.target_feature_volume}
+        target_feature_price: ${nn.timegan.target_feature_price}
+        target_feature_volume: ${nn.timegan.target_feature_volume}
         stock_names: ${nn.stock_names}
-        encoder_length: 390
-        decoder_length: 150
-        stride:
+        sequence_length: ${nn.timegan.sequence_length}
+        stride: ${nn.timegan.sequence_length}
 
   gpus: ${train.trainer.gpus}
 
   num_workers:
-    train: 12
-    val: 12
-    test: 12
+    train: 1
+    val: 1
+    test: 1
 
   batch_size:
     train: 128
@@ -73,10 +69,9 @@ data:
     test: 1
 
 module:
-  _target_: thesis_gan.pl_modules.timegan_pl_module.MyLightningModule
+  _target_: thesis_gan.pl_modules.pl_module_timegan.MyLightningModule
 
-  dataset_type: ${nn.dataset_type}
-  step_to_skip: 0
+  dataset_type: ${nn.timegan.dataset_type}
 
   optimizer_embedder:
     _target_: torch.optim.Adam
@@ -86,19 +81,56 @@ module:
     _target_: torch.optim.Adam
     lr: 0.01
 
+  optimizer_supervisor:
+    _target_: torch.optim.Adam
+    lr: 0.01
+
+  optimizer_generator:
+    _target_: torch.optim.Adam
+    lr: 0.01
+
+  optimizer_discriminator:
+    _target_: torch.optim.Adam
+    lr: 0.01
+
   embedder:
-    _target_: thesis_gan.modules.timegan.embedder
+    _target_: thesis_gan.modules.timegan.embedder.Embedder
     dropout: 0
-    hidden_dim: 128
+    hidden_size: 128
+    num_layers: 2
 
   recoverer:
-    _target_: thesis_gan.modules.timegan.recoverer
-    hidden_dim: 128
+    _target_: thesis_gan.modules.timegan.recoverer.Recoverer
+    dropout: 0
+    hidden_size: 128
+    num_layers: 2
 
-  target_feature_price: ${nn.target_feature_price}
-  target_feature_volume: ${nn.target_feature_volume}
-  stock_names: ${nn.stock_names}
-  encoder_length: ${nn.encoder_length}
-  decoder_length: ${nn.decoder_length}
+  supervisor:
+    _target_: thesis_gan.modules.timegan.supervisor.Supervisor
+    dropout: 0
+    hidden_size: 128
+    num_layers: 1
+
+  generator:
+    _target_: thesis_gan.modules.timegan.generator.Generator
+    dropout: 0
+    hidden_size: 128
+    num_layers: 2
+
+  discriminator:
+    _target_: thesis_gan.modules.timegan.discriminator.Discriminator
+    dropout: 0
+    hidden_size: 128
+    num_layers: 2
+
+  n_epochs_training_only_reconstruction: 100
+  n_epochs_training_only_supervised: 100
+
+  target_feature_price: ${nn.timegan.target_feature_price}
+  target_feature_volume: ${nn.timegan.target_feature_volume}
+  stock_names: ${nn.timegan.stock_names}
+  sequence_length: ${nn.timegan.sequence_length}
   val_log_freq: 5
   save_reals: True
+  noise_dim: 10
+  discriminator_threshold: 0.15
