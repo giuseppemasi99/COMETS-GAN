@@ -193,7 +193,6 @@ class MyLightningModule(PLModule):
         pred_sequence = pred_sequence.detach().cpu().numpy()
         return_dict = dict(pred_sequence=torch.Tensor(pred_sequence))
 
-        pred_sequence_price, last_price = None, None
         pred_sequence_volume, last_volume = None, None
 
         # If there are prices
