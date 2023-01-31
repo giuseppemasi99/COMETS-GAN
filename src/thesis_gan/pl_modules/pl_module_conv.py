@@ -25,7 +25,7 @@ class MyLightningModule(PLModule):
     logger: NNLogger
 
     def __init__(self, metadata: Optional[MetaData] = None, *args, **kwargs) -> None:
-        super().__init__()
+        super().__init__(metadata, *args, **kwargs)
 
         self.generator = hydra.utils.instantiate(
             self.hparams.generator,
