@@ -20,8 +20,6 @@ class StockDataset(Dataset):
         target_feature_price: str,
         target_feature_volume: str,
         stock_names: List[str],
-        encoder_length: int,
-        decoder_length: int,
         stride: int,
         data_pipeline_price: Pipeline,
         data_pipeline_volume: Pipeline,
@@ -32,18 +30,18 @@ class StockDataset(Dataset):
         self.df = pd.read_csv(path)
         self.target_feature_price = target_feature_price
         self.target_feature_volume = target_feature_volume
-        self.encoder_length = encoder_length
-        self.decoder_length = decoder_length
         self.stride = stride
         self.data_pipeline_price = data_pipeline_price
         self.data_pipeline_volume = data_pipeline_volume
         self.split = split
 
+        data_price = None
         if target_feature_price is not None:
             targets_price = [f"{target_feature_price}_{stock}" for stock in stock_names]
             data_price = data_pipeline_price.preprocess(self.df, targets_price)
             self.prices = self.df[targets_price].to_numpy()
 
+        data_volume = None
         if target_feature_volume is not None:
             targets_volume = [f"{target_feature_volume}_{stock}" for stock in stock_names]
             data_volume = data_pipeline_volume.preprocess(self.df, targets_volume)

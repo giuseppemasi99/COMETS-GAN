@@ -32,13 +32,14 @@ class StockDatasetTrain(StockDataset):
             target_feature_price,
             target_feature_volume,
             stock_names,
-            encoder_length,
-            decoder_length,
             stride,
             data_pipeline_price,
             data_pipeline_volume,
             split,
         )
+
+        self.encoder_length = encoder_length
+        self.decoder_length = decoder_length
 
     def __len__(self) -> int:
         # Length of dataset is similar to output size of convolution
