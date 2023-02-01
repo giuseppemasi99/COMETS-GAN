@@ -20,7 +20,7 @@ class Recoverer(nn.Module):
     def forward(self, h):
         # h.shape = [batch_size, sequence_length, hidden_dim]
 
-        o = self.gru(h)
+        o, _ = self.gru(h)
         # o.shape = [batch_size, sequence_length, hidden_dim]
 
         x_reconstructed = self.fc(o)

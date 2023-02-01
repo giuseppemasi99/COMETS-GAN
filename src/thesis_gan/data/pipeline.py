@@ -70,9 +70,13 @@ class ReturnPipeline(Pipeline):
 
         return self.scaler.transform(returns)
 
-    def inverse_transform(self, x: np.ndarray, x_last: np.ndarray) -> np.ndarray:
+    def inverse_transform(self, x: np.ndarray, x_last: Optional[np.ndarray] = None) -> np.ndarray:
         returns = self.scaler.inverse_transform(x)
-        return x_last * np.cumprod((1 + returns), axis=0)
+        inversed = np.cumprod((1 + returns), axis=0)
+        if x_last is not None:
+            return x_last * inversed
+        else:
+            return inversed
 
 
 class LogReturnPipeline(Pipeline):
@@ -89,6 +93,10 @@ class LogReturnPipeline(Pipeline):
 
         return self.scaler.transform(log_returns)
 
-    def inverse_transform(self, x: np.ndarray, x_last: np.ndarray) -> np.ndarray:
+    def inverse_transform(self, x: np.ndarray, x_last: Optional[np.ndarray] = None) -> np.ndarray:
         log_returns = self.scaler.inverse_transform(x)
-        return x_last * (np.cumprod(np.exp(log_returns), axis=0))
+        inversed = np.cumprod(np.exp(log_returns), axis=0)
+        if x_last is not None:
+            return x_last * inversed
+        else:
+            return inversed

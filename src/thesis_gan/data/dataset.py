@@ -5,6 +5,7 @@ import hydra
 import numpy as np
 import omegaconf
 import pandas as pd
+import torch
 from torch.utils.data import Dataset
 
 from nn_core.common import PROJECT_ROOT
@@ -56,6 +57,21 @@ class StockDataset(Dataset):
 
     def __repr__(self) -> str:
         return f"StockDataset({self.split=}, n_instances={len(self)})"
+
+    def get_dict(self, x_slice):
+        x = torch.as_tensor(self.data[x_slice].T, dtype=torch.float)
+
+        return_dict = dict(x=x)
+
+        if self.target_feature_price is not None:
+            prices = torch.as_tensor(self.prices[x_slice].T, dtype=torch.float)
+            return_dict["prices"] = prices
+
+        if self.target_feature_volume is not None:
+            volumes = torch.as_tensor(self.volumes[x_slice].T, dtype=torch.float)
+            return_dict["volumes"] = volumes
+
+        return return_dict
 
 
 @hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default", version_base=None)

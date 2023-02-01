@@ -58,14 +58,6 @@ class StockDatasetTrain(StockDataset):
 
         return_dict = dict(x=x, y=y)
 
-        if self.target_feature_price is not None:
-            x_prices = torch.as_tensor(self.prices[x_slice].T, dtype=torch.float)
-            return_dict["x_prices"] = x_prices
-
-        if self.target_feature_volume is not None:
-            x_volumes = torch.as_tensor(self.volumes[x_slice].T, dtype=torch.float)
-            return_dict["x_volumes"] = x_volumes
-
         return return_dict
 
 

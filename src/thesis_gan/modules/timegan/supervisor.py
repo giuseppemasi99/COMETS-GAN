@@ -8,7 +8,7 @@ class Supervisor(nn.Module):
         self.gru = nn.GRU(
             input_size=hidden_size,
             hidden_size=hidden_size,
-            num_layers=num_layers,
+            num_layers=num_layers - 1,
             batch_first=True,
             dropout=dropout,
             bidirectional=False,
@@ -19,7 +19,7 @@ class Supervisor(nn.Module):
     def forward(self, h):
         # h.shape = [batch_size, sequence_length, hidden_size]
 
-        o = self.gru(h)
+        o, _ = self.gru(h)
         # o.shape = [batch_size, sequence_length, hidden_size]
 
         s = self.fc(o)

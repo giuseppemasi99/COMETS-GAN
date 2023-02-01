@@ -5,6 +5,9 @@ import torch
 
 
 def corr(x_batch: torch.Tensor) -> torch.Tensor:
+    if len(x_batch.shape) == 2:
+        x_batch = x_batch.unsqueeze(0)
+
     n_features = x_batch.shape[1]
     indices = torch.triu_indices(n_features, n_features, 1)
 

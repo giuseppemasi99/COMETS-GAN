@@ -1,7 +1,7 @@
 import logging
 import os
 import pickle
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence
 
 import hydra
 import numpy as np
@@ -10,7 +10,6 @@ import pytorch_lightning as pl
 import torch
 import wandb
 from matplotlib import pyplot as plt
-from torch.optim import Optimizer
 
 from nn_core.common import PROJECT_ROOT
 from nn_core.model_logging import NNLogger
@@ -25,7 +24,8 @@ from thesis_gan.common.metrics import (
     get_plot_sf_returns_distribution,
     get_plot_sf_volatility_clustering,
     get_plot_sf_volume_volatility_correlation,
-    get_plot_timeseries,
+    get_plot_timeseries_conv,
+    get_plot_timeseries_timegan,
 )
 from thesis_gan.data.datamodule import MetaData
 
@@ -72,8 +72,8 @@ class PLModule(pl.LightningModule):
     def test_epoch_end(self, samples: Sequence[Dict]) -> None:
         self.validation_n_test_epoch_end(samples)
 
-    def log_correlations(self, y_realOpred: torch.Tensor, realOpred: str) -> None:
-        d = get_correlations_dict(y_realOpred, realOpred, self.feature_names)
+    def log_correlations(self, y: torch.Tensor, real_o_pred: str) -> None:
+        d = get_correlations_dict(y, real_o_pred, self.feature_names)
         self.log_dict(d, on_step=False, on_epoch=True, prog_bar=False)
 
     def log_correlation_distances(self, y_real: torch.Tensor, y_pred: torch.Tensor, stage: str) -> None:
@@ -86,9 +86,27 @@ class PLModule(pl.LightningModule):
         pred: np.ndarray,
         price_o_volume: str,
     ) -> None:
-        fig = get_plot_timeseries(
-            real, pred, self.hparams.dataset_type, self.hparams.stock_names, self.hparams.encoder_length, price_o_volume
-        )
+        if self.hparams.model_type == "conv":
+            fig = get_plot_timeseries_conv(
+                real,
+                pred,
+                self.hparams.dataset_type,
+                self.hparams.stock_names,
+                self.hparams.encoder_length,
+                price_o_volume,
+            )
+        else:
+
+            if self.current_epoch < self.hparams.n_epochs_training_only_reconstruction:
+                stage = "Only reconstruction"
+            elif self.current_epoch < self.hparams.n_epochs_training_only_supervised:
+                stage = "Only supervised"
+            else:
+                stage = "Joint"
+
+            fig = get_plot_timeseries_timegan(
+                real, pred, self.hparams.dataset_type, self.hparams.stock_names, price_o_volume, stage
+            )
         title = f"{price_o_volume} - Epoch {self.current_epoch}"
         self.logger.experiment.log({title: wandb.Image(fig)})
         plt.close(fig)
@@ -151,14 +169,12 @@ class PLModule(pl.LightningModule):
         self.logger.experiment.log({title: wandb.Image(fig)})
         plt.close(fig)
 
-    def log_plot_sf_volume_volatility_correlation(
-        self, sequence_price, pred_sequence_price, sequence_volume, pred_sequence_volume
-    ) -> None:
+    def log_plot_sf_volume_volatility_correlation(self, x_price, x_hat_price, x_volume, x_hat_volume) -> None:
         fig = get_plot_sf_volume_volatility_correlation(
-            sequence_price,
-            pred_sequence_price,
-            sequence_volume,
-            pred_sequence_volume,
+            x_price,
+            x_hat_price,
+            x_volume,
+            x_hat_volume,
             self.hparams.stock_names,
             self.hparams.delta,
         )
@@ -170,98 +186,155 @@ class PLModule(pl.LightningModule):
         for d in get_metrics_listdict(ts_real, ts_pred, self.hparams.stock_names):
             self.log_dict(d, on_step=False, on_epoch=True, prog_bar=False)
 
-    def configure_optimizers(self) -> Tuple[Dict[str, Optimizer], Dict[str, Optimizer]]:
-        """Choose what optimizers and learning-rate schedulers to use in your optimization.
+    def dict_with_tensors_to_numpy(self, d):
+        for k, v in d.items():
+            d[k] = v.numpy()
+        return d
 
-        Normally you'd need one. But in the case of GANs or similar you might have multiple.
+    def dict_with_tensors_cuda_to_cpu(self, d):
+        for k, v in d.items():
+            d[k] = v.cpu()
+        return d
 
-        Return:
-            Any of these 6 options.
-            - Single optimizer.
-            - List or Tuple - List of optimizers.
-            - Two lists - The first list has multiple optimizers, the second a list of LR schedulers (or lr_dict).
-            - Dictionary, with an 'optimizer' key, and (optionally) a 'lr_scheduler'
-              key whose value is a single LR scheduler or lr_dict.
-            - Tuple of dictionaries as described, with an optional 'frequency' key.
-            - None - Fit will run without any optimizer.
-        """
-        opt_g = hydra.utils.instantiate(
-            self.hparams.optimizer_g,
-            params=self.generator.parameters(),
-            _convert_="partial",
-        )
-        opt_d = hydra.utils.instantiate(
-            self.hparams.optimizer_d,
-            params=self.discriminator.parameters(),
-            _convert_="partial",
-        )
-
-        return (
-            {"optimizer": opt_g, "frequency": 1},
-            {"optimizer": opt_d, "frequency": self.hparams.n_critic},
-        )
-
-    def log_sines_gaussian(self, batch: Dict[str, torch.Tensor], y_pred: torch.Tensor, batch_idx: int) -> None:
-        history_indexes = np.arange(self.hparams.encoder_length)
-        continuation_indexes = np.arange(
-            self.hparams.encoder_length,
-            self.hparams.encoder_length + self.hparams.decoder_length,
-        )
-
-        x = batch["x"]
-        y = batch["y"]
-
-        history = x[0].detach().cpu().numpy()
-        real = y[0].detach().cpu().numpy()
-        preds = y_pred[0].detach().cpu().numpy()
-
-        fig, ax = plt.subplots(1, self.hparams.n_features, figsize=(7 * self.hparams.n_features, 4))
-        legend_elements = [
-            # Line2D([0], [0], color="C0", lw=2, label="Observed"),
-            # Line2D([0], [0], color="C1", lw=2, label="Real continuation"),
-            # Line2D([0], [0], color="C2", lw=2, label="Predicted continuation"),
-        ]
-
-        for target_idx in range(self.hparams.n_features):
-            # Plot of prices
-            title = f"Feature {target_idx}"
-            ax[target_idx].set_title(title)
-
-            ax[target_idx].plot(
-                history_indexes,
-                history[target_idx],
-                color="C0",
-            )
-            ax[target_idx].plot(
-                continuation_indexes,
-                real[target_idx],
-                color="C1",
-            )
-            ax[target_idx].plot(
-                continuation_indexes,
-                preds[target_idx],
-                color="C2",
-            )
-
-        fig.legend(handles=legend_elements, loc="upper right", ncol=1)
-        fig.tight_layout()
-        title = f"Epoch {self.current_epoch} ({batch_idx})"
-        self.logger.experiment.log({title: wandb.Image(fig)})
-        plt.close(fig)
-
-    def save_files(self, dict_with_reals, dict_with_preds):
+    def save_dict_in_pickle_file(self, d, file_name):
         if hasattr(self.logger, "run_dir"):
             if not os.path.exists(self.logger.run_dir):
                 os.makedirs(self.logger.run_dir)
 
-            path_file_preds = f"{self.logger.run_dir}/preds_timegan_epoch={self.current_epoch}-target_price={self.hparams.target_feature_price}-target_volume={self.hparams.target_feature_volume}.pickle"
-            with open(path_file_preds, "wb") as handle:
-                pickle.dump(dict_with_preds, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            path_file = f"{self.logger.run_dir}/{file_name}"
+            if not os.path.exists(path_file):
+                with open(path_file, "wb") as handle:
+                    pickle.dump(d, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-            path_file_reals = f"{self.logger.run_dir}/reals_timegan.pickle"
-            if self.hparams.save_reals is True and not os.path.exists(path_file_reals):
-                with open(path_file_reals, "wb") as handle:
-                    pickle.dump(dict_with_reals, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    def aggregate_from_batches(self, samples: Sequence[Dict]) -> Dict[str, torch.Tensor]:
+        # Aggregation of the batches
+        x, prices, volumes = list(), list(), list()
+        for batch in samples:
+            x.append(batch["x"])
+            if self.hparams.target_feature_price is not None:
+                prices.append(batch["prices"])
+            if self.hparams.target_feature_volume is not None:
+                volumes.append(batch["volumes"])
+
+        # Building the whole real sequences
+        x = torch.concatenate(x, dim=2).squeeze().detach()
+        dict_with_reals: Dict[str, torch.Tensor] = dict(x=x)
+        if self.hparams.target_feature_price is not None:
+            prices = torch.concatenate(prices, dim=2).squeeze().detach()
+            dict_with_reals["prices"] = prices
+        if self.hparams.target_feature_volume is not None:
+            volumes = torch.concatenate(volumes, dim=2).squeeze().detach()
+            dict_with_reals["volumes"] = volumes
+
+        return dict_with_reals
+
+    def unpack(
+        self,
+        x_hat: torch.Tensor,
+        last_prices: Optional[np.ndarray] = None,
+        last_volumes: Optional[np.ndarray] = None,
+    ) -> Dict[str, torch.Tensor]:
+
+        return_dict = dict(x_hat=x_hat)
+
+        pred_x_volume = None
+
+        # If there are prices
+        if self.hparams.target_feature_price is not None:
+            pred_x_price = x_hat[: self.hparams.n_stocks, :]
+            pred_prices = self.pipeline_price.inverse_transform(pred_x_price.numpy().T, last_prices).T
+            return_dict["pred_prices"] = torch.Tensor(pred_prices)
+
+        # If there are both prices and volumes
+        if self.hparams.target_feature_price is not None and self.hparams.target_feature_volume is not None:
+            pred_x_volume = x_hat[self.hparams.n_stocks :, :]
+
+        # If there are only volumes
+        elif self.hparams.target_feature_volume is not None:
+            pred_x_volume = x_hat
+
+        # If there are volumes
+        if self.hparams.target_feature_volume is not None:
+            pred_volumes = self.pipeline_volume.inverse_transform(pred_x_volume.numpy().T, last_volumes).T
+            return_dict["pred_volumes"] = torch.Tensor(pred_volumes)
+
+        return return_dict
+
+    def continue_validation_n_test_epoch_end(self, dict_with_reals, dict_with_preds) -> None:
+        dict_with_reals = self.dict_with_tensors_cuda_to_cpu(dict_with_reals)
+
+        x, x_hat = dict_with_reals["x"], dict_with_preds["x_hat"]
+        # x.shape = [n_features, sequence_length]
+        # x_hat.shape = [n_features, sequence_length]
+
+        # Logging the correlations metrics
+        self.log_correlations(x_hat, "pred")
+        self.log_correlations(x, "real")
+        self.log_correlation_distances(x, x_hat, "val")
+
+        dict_with_reals: Dict[str, np.array] = self.dict_with_tensors_to_numpy(dict_with_reals)
+        dict_with_preds: Dict[str, np.array] = self.dict_with_tensors_to_numpy(dict_with_preds)
+
+        # Saving preds and reals in pickle files
+        self.save_dict_in_pickle_file(
+            dict_with_preds,
+            file_name=f"preds_epoch={self.current_epoch}-"
+            f"target_price={self.hparams.target_feature_price}-"
+            f"target_volume={self.hparams.target_feature_volume}"
+            f".pickle",
+        )
+        if self.hparams.save_reals:
+            self.save_dict_in_pickle_file(dict_with_reals, file_name="reals.pickle")
+
+        if self.current_epoch > 0:
+            self.do_plots(dict_with_reals, dict_with_preds)
+
+    def do_plots(self, dict_with_reals: Dict[str, np.array], dict_with_preds: Dict[str, np.array]) -> None:
+
+        x = dict_with_reals["x"]
+        x_hat = dict_with_preds["x_hat"]
+
+        # If there are prices
+        if self.hparams.target_feature_price is not None:
+            prices = dict_with_reals["prices"]
+            pred_prices = dict_with_preds["pred_prices"]
+
+            # Plot prices
+            self.log_plot_timeseries(prices, pred_prices, "Prices")
+
+            # Plots stylised facts
+            if self.hparams.dataset_type == "multistock":
+                self.log_plot_sf_returns_distribution(prices, pred_prices)
+                self.log_plot_sf_aggregational_gaussianity(prices, pred_prices)
+                self.log_plot_sf_absence_autocorrelation(prices, pred_prices)
+                self.log_plot_sf_volatility_clustering(prices, pred_prices)
+
+        pred_volumes = None
+        # If there are volumes
+        if self.hparams.target_feature_volume is not None:
+            volumes = dict_with_reals["volumes"]
+            pred_volumes = dict_with_preds["pred_volumes"]
+
+            # Plot volumes
+            self.log_plot_timeseries(volumes, pred_volumes, "Volumes")
+
+            # Logging volumes metrics
+            self.log_metrics_volume(volumes, pred_volumes)
+
+        # If there are both prices and volumes
+        if self.hparams.target_feature_price is not None and self.hparams.target_feature_volume is not None:
+            x_price, x_hat_price = (
+                x[: self.hparams.n_stocks],
+                x_hat[: self.hparams.n_stocks],
+            )
+            x_volume, x_hat_volume = (
+                x[self.hparams.n_stocks :],
+                x_hat[self.hparams.n_stocks :],
+            )
+
+            # Plot stylised fact
+            if self.hparams.dataset_type == "multistock":
+                self.log_plot_sf_volume_volatility_correlation(x_price, x_hat_price, x_volume, x_hat_volume)
 
 
 @hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default", version_base=None)

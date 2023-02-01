@@ -7,8 +7,6 @@ import numpy as np
 import omegaconf
 import pytorch_lightning as pl
 import torch
-import wandb
-from matplotlib import pyplot as plt
 from torch.optim import Optimizer
 
 from nn_core.common import PROJECT_ROOT
@@ -49,20 +47,22 @@ class MyLightningModule(PLModule):
         return out
 
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int, optimizer_idx: int) -> torch.Tensor:
-        exit()
+        # batch.keys() = ['x', 'y', 'x_prices', 'x_volumes']
         x = batch["x"]
+        # x.shape [batch_size, n_features, encoder_length]
+
         y_real = batch["y"]
+        # y_real.shape [batch_size, n_features, decoder_length]
 
         # Sample noise
         noise = torch.randn(x.shape[0], 1, self.hparams.encoder_length, device=self.device)
+        # noise.shape = [batch_size, 1, encoder_length]
 
         # Train generator
         if optimizer_idx == 0:
-            # x.shape [batch_size, num_features, encoder_length]
-            # noise.shape = [batch_size, 1, encoder_length]
             y_pred = self(x, noise)
             g_loss = -torch.mean(self.discriminator(x, y_pred))
-            self.log_dict({"loss/gen": g_loss}, on_step=True, on_epoch=True, prog_bar=True)
+            self.log_dict({"loss/generator": g_loss}, on_step=True, on_epoch=True, prog_bar=True)
             if self.hparams.dataset_type == "multistock":
                 self.log_correlation_distances(y_real, y_pred, stage="train")
             return g_loss
@@ -73,109 +73,38 @@ class MyLightningModule(PLModule):
             real_validity = self.discriminator(x, y_real)
             fake_validity = self.discriminator(x, y_pred)
             d_loss = -torch.mean(real_validity) + torch.mean(fake_validity)
-            self.log_dict({"loss/disc": d_loss}, on_step=True, on_epoch=True, prog_bar=True)
+            self.log_dict({"loss/discriminator": d_loss}, on_step=True, on_epoch=True, prog_bar=True)
             return d_loss
 
     def validation_n_test_epoch_end(self, samples: Sequence[Dict]) -> None:
+        # TODO: Controllare last_prices & last_volumes
 
         # Aggregation of the batches
-        sequence, prices, volumes = list(), list(), list()
-        for batch in samples:
-            sequence.append(batch["sequence"])
-            if self.hparams.target_feature_price is not None:
-                prices.append(batch["prices"])
-            if self.hparams.target_feature_volume is not None:
-                volumes.append(batch["volumes"])
+        dict_with_reals: Dict[str, torch.Tensor] = self.aggregate_from_batches(samples)
 
-        # Building the whole real sequences
-        sequence = torch.concatenate(sequence, dim=2)
-        dict_with_reals = dict(sequence=sequence.detach().cpu())
-        sequence = sequence[:, :, self.hparams.step_to_skip :]
+        prices, volumes, last_prices, last_volumes = None, None, None, None
         if self.hparams.target_feature_price is not None:
-            prices = torch.concatenate(prices, dim=2)
-            prices = prices[:, :, self.hparams.step_to_skip :]
-            dict_with_reals["prices"] = prices.detach().cpu()
+            prices = dict_with_reals["prices"]
+            last_prices = prices[: self.hparams.n_stocks, self.hparams.encoder_length - 1].cpu()
         if self.hparams.target_feature_volume is not None:
-            volumes = torch.concatenate(volumes, dim=2)
-            volumes = volumes[:, :, self.hparams.step_to_skip :]
-            dict_with_reals["volumes"] = volumes.detach().cpu()
+            volumes = dict_with_reals["volumes"]
+            last_volumes = volumes[: self.hparams.n_stocks, self.hparams.encoder_length - 1].cpu()
 
         # Autoregressive prediction
+        x = dict_with_reals["x"]
+        # x.shape = [n_features, sequence_length]
+        sequence_length = x.shape[1]
         dict_with_preds: Dict[str, torch.Tensor] = self.predict_autoregressively(
-            sequence, prices, volumes, prediction_length=sequence.shape[2] - self.hparams.encoder_length
+            x, last_prices, last_volumes, prediction_length=sequence_length - self.hparams.encoder_length
         )
 
-        # Saving preds and reals in pickle files
-        self.save_files(dict_with_reals, dict_with_preds)
-
-        # Retrieving the pred_sequence and the real sequence
-        pred_sequence = dict_with_preds["pred_sequence"][:, :, : sequence.shape[2]]
-        pred_sequence = pred_sequence.detach().cpu()
-        sequence = sequence.detach().cpu()
-
-        # Logging the correlations metrics
-        self.log_correlations(pred_sequence, "pred")
-        self.log_correlations(sequence, "real")
-        self.log_correlation_distances(sequence, pred_sequence, "val")
-
-        # Squeezing the batch dimension that is 1 at prediction time
-        pred_sequence = pred_sequence.squeeze()
-        sequence = sequence.squeeze()
-
-        if self.current_epoch > 0:
-
-            pred_prices = None
-            # If there are prices
-            if self.hparams.target_feature_price is not None:
-                pred_prices = dict_with_preds["pred_prices"][:, : sequence.shape[1]]
-                pred_prices = pred_prices.detach().cpu().squeeze().numpy()
-                prices = prices.detach().cpu().squeeze().numpy()
-
-                # Plot prices
-                self.log_plot_timeseries(prices, pred_prices, "Prices")
-
-                # Plots stylised facts
-                if self.hparams.dataset_type == "multistock":
-                    self.log_plot_sf_returns_distribution(prices, pred_prices)
-                    self.log_plot_sf_aggregational_gaussianity(prices, pred_prices)
-                    self.log_plot_sf_absence_autocorrelation(prices, pred_prices)
-                    self.log_plot_sf_volatility_clustering(prices, pred_prices)
-
-            pred_volumes = None
-            # If there are volumes
-            if self.hparams.target_feature_volume is not None:
-                pred_volumes = dict_with_preds["pred_volumes"][:, : sequence.shape[1]]
-                pred_volumes = pred_volumes.squeeze().detach().cpu().numpy()
-                volumes = volumes.squeeze().detach().cpu().numpy()
-
-                # Plot volumes
-                self.log_plot_timeseries(volumes, pred_volumes, "Volumes")
-
-                # Logging volumes metrics
-                self.log_metrics_volume(volumes, pred_volumes)
-
-            # If there are both prices and volumes
-            if self.hparams.target_feature_price is not None and self.hparams.target_feature_volume is not None:
-                sequence_price, pred_sequence_price = (
-                    sequence[: self.hparams.n_stocks],
-                    pred_sequence[: self.hparams.n_stocks],
-                )
-                sequence_volume, pred_sequence_volume = (
-                    sequence[self.hparams.n_stocks :],
-                    pred_sequence[self.hparams.n_stocks :],
-                )
-
-                # Plot stylised fact
-                if self.hparams.dataset_type == "multistock":
-                    self.log_plot_sf_volume_volatility_correlation(
-                        sequence_price, pred_sequence_price, sequence_volume, pred_sequence_volume
-                    )
+        self.continue_validation_n_test_epoch_end(dict_with_reals, dict_with_preds)
 
     def predict_autoregressively(
         self,
-        sequence: torch.Tensor,
-        prices: torch.Tensor,
-        volumes: torch.Tensor,
+        x: torch.Tensor,
+        last_prices: Optional[np.ndarray] = None,
+        last_volumes: Optional[np.ndarray] = None,
         prediction_length: Optional[int] = None,
     ) -> Dict[str, torch.Tensor]:
 
@@ -184,39 +113,18 @@ class MyLightningModule(PLModule):
 
         prediction_iterations = math.ceil(prediction_length / self.hparams.decoder_length)
 
-        pred_sequence = sequence[:, :, : self.hparams.encoder_length]
+        x_hat = x[:, : self.hparams.encoder_length].unsqueeze(0)
+        # x_hat.shape = [1, n_features, encoder_length]
+
         for i in range(prediction_iterations):
             noise = torch.randn(1, 1, self.hparams.encoder_length, device=self.device)
-            o = self(pred_sequence[:, :, -self.hparams.encoder_length :], noise)
-            pred_sequence = torch.concatenate((pred_sequence, o), dim=2)
+            o = self(x_hat[:, :, -self.hparams.encoder_length :], noise)
+            x_hat = torch.concatenate((x_hat, o), dim=2)
 
-        pred_sequence = pred_sequence.detach().cpu().numpy()
-        return_dict = dict(pred_sequence=torch.Tensor(pred_sequence))
+        x_hat = x_hat.squeeze().detach().cpu()
+        # x_hat.shape = [n_features, sequence_length]
 
-        pred_sequence_volume, last_volume = None, None
-
-        # If there are prices
-        if self.hparams.target_feature_price is not None:
-            last_price = prices[:, : self.hparams.n_stocks, self.hparams.encoder_length - 1].detach().cpu()
-            pred_sequence_price = pred_sequence[0, : self.hparams.n_stocks, :]
-            pred_prices = self.pipeline_price.inverse_transform(pred_sequence_price.T, last_price).T
-            return_dict["pred_prices"] = torch.Tensor(pred_prices)
-
-        # If there are both prices and volumes
-        elif self.hparams.target_feature_price is not None and self.hparams.target_feature_volume is not None:
-            last_volume = volumes[:, :, self.hparams.encoder_length - 1].detach().cpu()
-            pred_sequence_volume = pred_sequence[0, self.hparams.n_stocks :, :]
-
-        # If there are only volumes
-        elif self.hparams.target_feature_volume is not None:
-            last_volume = volumes[:, : self.hparams.n_stocks, self.hparams.encoder_length - 1].detach().cpu()
-            pred_sequence_volume = pred_sequence[0, : self.hparams.n_stocks, :]
-
-        if self.hparams.target_feature_volume is not None:
-            pred_volumes = self.pipeline_volume.inverse_transform(pred_sequence_volume.T, last_volume).T
-            return_dict["pred_volumes"] = torch.Tensor(pred_volumes)
-
-        return return_dict
+        return self.unpack(x_hat, last_prices, last_volumes)
 
     def configure_optimizers(self) -> Tuple[Dict[str, Optimizer], Dict[str, Optimizer]]:
         """Choose what optimizers and learning-rate schedulers to use in your optimization.
@@ -248,54 +156,6 @@ class MyLightningModule(PLModule):
             {"optimizer": opt_g, "frequency": 1},
             {"optimizer": opt_d, "frequency": self.hparams.n_critic},
         )
-
-    def log_sines_gaussian(self, batch: Dict[str, torch.Tensor], y_pred: torch.Tensor, batch_idx: int) -> None:
-        history_indexes = np.arange(self.hparams.encoder_length)
-        continuation_indexes = np.arange(
-            self.hparams.encoder_length,
-            self.hparams.encoder_length + self.hparams.decoder_length,
-        )
-
-        x = batch["x"]
-        y = batch["y"]
-
-        history = x[0].detach().cpu().numpy()
-        real = y[0].detach().cpu().numpy()
-        preds = y_pred[0].detach().cpu().numpy()
-
-        fig, ax = plt.subplots(1, self.hparams.n_features, figsize=(7 * self.hparams.n_features, 4))
-        legend_elements = [
-            # Line2D([0], [0], color="C0", lw=2, label="Observed"),
-            # Line2D([0], [0], color="C1", lw=2, label="Real continuation"),
-            # Line2D([0], [0], color="C2", lw=2, label="Predicted continuation"),
-        ]
-
-        for target_idx in range(self.hparams.n_features):
-            # Plot of prices
-            title = f"Feature {target_idx}"
-            ax[target_idx].set_title(title)
-
-            ax[target_idx].plot(
-                history_indexes,
-                history[target_idx],
-                color="C0",
-            )
-            ax[target_idx].plot(
-                continuation_indexes,
-                real[target_idx],
-                color="C1",
-            )
-            ax[target_idx].plot(
-                continuation_indexes,
-                preds[target_idx],
-                color="C2",
-            )
-
-        fig.legend(handles=legend_elements, loc="upper right", ncol=1)
-        fig.tight_layout()
-        title = f"Epoch {self.current_epoch} ({batch_idx})"
-        self.logger.experiment.log({title: wandb.Image(fig)})
-        plt.close(fig)
 
 
 @hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default", version_base=None)

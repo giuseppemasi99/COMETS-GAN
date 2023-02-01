@@ -23,9 +23,10 @@ plt.rcParams["font.family"] = "serif"
 
 
 # CORRELATIONS
-def get_correlations_dict(y_realOpred: torch.Tensor, realOpred: str, feature_names: Sequence) -> Dict[str, float]:
-    correlations = corr(y_realOpred).squeeze()
-    metric_names = [f"{realOpred}_correlation/{'-'.join(x)}" for x in combinations(feature_names, 2)]
+def get_correlations_dict(y: torch.Tensor, real_o_pred: str, feature_names: Sequence) -> Dict[str, float]:
+    # y.shape = [batch_size, n_features, decoder_length]
+    correlations = corr(y).squeeze()
+    metric_names = [f"{real_o_pred}_correlation/{'-'.join(x)}" for x in combinations(feature_names, 2)]
     d = {metric: correlation.item() for metric, correlation in zip(metric_names, correlations)}
     return d
 
@@ -86,7 +87,7 @@ def get_metrics_listdict(ts_real: np.ndarray, ts_pred: np.ndarray, stock_names) 
 
 
 # PLOT TIMESERIES
-def get_plot_timeseries(
+def get_plot_timeseries_conv(
     real: np.ndarray,
     pred: np.ndarray,
     dataset_type: str,
@@ -137,7 +138,51 @@ def get_plot_timeseries(
                 color="C2",
             )
 
-    fig.suptitle(price_o_volume, fontsize=24, y=1.04)
+    fig.suptitle(price_o_volume, fontsize=24, y=0.94)
+    fig.legend(handles=legend_elements, loc="upper center", ncol=3, fontsize=15, bbox_to_anchor=(0.5, 1))
+    fig.tight_layout()
+
+    return fig
+
+
+def get_plot_timeseries_timegan(
+    real: np.ndarray, pred: np.ndarray, dataset_type: str, stock_names: Sequence[str], price_o_volume: str, stage: str
+) -> Any:
+    I, J = None, None
+    if dataset_type == "multistock":
+        I, J = 2, 2
+    if dataset_type == "DowJones":
+        I, J = 5, 6
+
+    indexes = np.arange(real.shape[1])
+
+    fig, axes = plt.subplots(I, J)
+    legend_elements = [
+        Line2D([0], [0], color="C1", lw=2, label="Real"),
+        Line2D([0], [0], color="C2", lw=2, label="Predicted"),
+    ]
+
+    for i in range(I):
+        for j in range(J):
+            linear_index = i * J + j
+            axes[i, j].set_title(f"{stock_names[linear_index]}", fontsize=20)
+
+            if dataset_type == "DowJones":
+                axes[i, j].set_xticklabels([])
+                axes[i, j].set_yticklabels([])
+
+            axes[i, j].plot(
+                indexes,
+                real[linear_index],
+                color="C1",
+            )
+            axes[i, j].plot(
+                indexes,
+                pred[linear_index],
+                color="C2",
+            )
+
+    fig.suptitle(f"{price_o_volume} - {stage}", fontsize=24, y=0.94)
     fig.legend(handles=legend_elements, loc="upper center", ncol=3, fontsize=15, bbox_to_anchor=(0.5, 1))
     fig.tight_layout()
 
@@ -329,7 +374,7 @@ def get_plot_sf_volatility_clustering(prices, pred_prices, stock_names):
                 axs[i, j], prices[linear_index, :], pred_prices[linear_index, :], stock_names[linear_index]
             )
 
-    fig.suptitle("Volatility clustering", fontsize=24, y=1.04)
+    fig.suptitle("Volatility clustering", fontsize=24, y=0.94)
     fig.legend(handles=legend_elements, loc="upper center", ncol=2, fontsize=15, bbox_to_anchor=(0.5, 1))
     fig.tight_layout()
 
@@ -337,13 +382,11 @@ def get_plot_sf_volatility_clustering(prices, pred_prices, stock_names):
 
 
 # PLOT VOLUME VOLATILITY CORRELATION
-def get_plot_sf_volume_volatility_correlation(
-    sequence_price, pred_sequence_price, sequence_volume, pred_sequence_volume, stock_names, delta
-):
-    real_avg_log_returns = compute_avg_log_returns(sequence_price, delta)
-    real_avg_volumes = compute_avg_volumes(sequence_volume, delta)
-    pred_avg_log_returns = compute_avg_log_returns(pred_sequence_price, delta)
-    pred_avg_volumes = compute_avg_volumes(pred_sequence_volume, delta)
+def get_plot_sf_volume_volatility_correlation(x_price, x_hat_price, x_volume, x_hat_volume, stock_names, delta):
+    real_avg_log_returns = compute_avg_log_returns(x_price, delta)
+    real_avg_volumes = compute_avg_volumes(x_volume, delta)
+    pred_avg_log_returns = compute_avg_log_returns(x_hat_price, delta)
+    pred_avg_volumes = compute_avg_volumes(x_hat_volume, delta)
 
     fig, ax = plt.subplots(2, 4)
 

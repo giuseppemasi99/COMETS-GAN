@@ -54,19 +54,7 @@ class StockDatasetInference(StockDataset):
                 self.encoder_length + index * self.decoder_length,
             )
 
-        data = torch.as_tensor(self.data[sequence_slice].T, dtype=torch.float)
-
-        return_dict = dict(sequence=data)
-
-        if self.target_feature_price is not None:
-            prices = torch.as_tensor(self.prices[sequence_slice].T, dtype=torch.float)
-            return_dict["prices"] = prices
-
-        if self.target_feature_volume is not None:
-            volumes = torch.as_tensor(self.volumes[sequence_slice].T, dtype=torch.float)
-            return_dict["volumes"] = volumes
-
-        return return_dict
+        return self.get_dict(sequence_slice)
 
 
 @hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default", version_base=None)

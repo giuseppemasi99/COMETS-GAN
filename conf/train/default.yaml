@@ -5,8 +5,8 @@ checkpoint: #'storage/thesis-gan/svufltdd/checkpoints/epoch=168-step=47319.ckpt.
 
 # PyTorch Lightning Trainer https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html
 trainer:
-  fast_dev_run: False # Enable this for debug purposes
-  gpus: 0
+  fast_dev_run: True # Enable this for debug purposes
+  gpus: 1
   precision: 32
   max_epochs: 300
   max_steps: -1
@@ -21,7 +21,7 @@ restore:
   mode: null # null, finetune, hotstart, continue
 
 monitor:
-  metric: 'loss/gen'
+  metric: 'loss/generator'
   mode: 'min'
 
 callbacks:
@@ -49,7 +49,7 @@ logging:
     project: ${core.project_name}
     entity: null
     log_model: ${..upload.run_files}
-    mode: 'offline'
+    mode: 'online'
 
   wandb_watch:
     log: 'all'

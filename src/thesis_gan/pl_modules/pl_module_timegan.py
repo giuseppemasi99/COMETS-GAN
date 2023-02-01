@@ -3,6 +3,7 @@ import math
 from typing import Dict, Optional, Sequence
 
 import hydra
+import numpy as np
 import omegaconf
 import pytorch_lightning as pl
 import torch
@@ -43,8 +44,7 @@ class MyLightningModule(PLModule):
 
         self.generator = hydra.utils.instantiate(
             self.hparams.generator,
-            n_features=self.hparams.noise_features,
-            sequence_length=self.hparams.noise_features,
+            noise_dim=self.hparams.noise_dim,
             _recursive_=False,
         )
 
@@ -99,11 +99,6 @@ class MyLightningModule(PLModule):
         # batch.keys() = ['x', 'x_prices']
 
         opt_embedder, opt_recoverer, opt_supervisor, opt_generator, opt_discriminator = self.optimizers()
-        opt_embedder.zero_grad()
-        opt_recoverer.zero_grad()
-        opt_supervisor.zero_grad()
-        opt_generator.zero_grad()
-        opt_discriminator.zero_grad()
 
         x = batch["x"]
         # x.shape = [batch_size, n_features, sequence_length]
@@ -112,6 +107,9 @@ class MyLightningModule(PLModule):
 
         # Training with reconstruction loss only
         if self.current_epoch < self.hparams.n_epochs_training_only_reconstruction:
+            opt_embedder.zero_grad()
+            opt_recoverer.zero_grad()
+
             x_tilde = self.forward_autoencoder(x)
             # x_tilde.shape = [batch_size, n_features, sequence_length]
 
@@ -125,12 +123,14 @@ class MyLightningModule(PLModule):
 
         # Training with supervised loss only
         elif self.current_epoch < self.hparams.n_epochs_training_only_supervised:
+            opt_supervisor.zero_grad()
+
             h = self.forward_embedder(x)
             # h.shape = [batch_size, sequence_length, hidden_size]
             h_hat_s = self.forward_supervisor(h)
             # h_hat_s.shape = [batch_size, sequence_length, hidden_size]
 
-            loss_supervised = self.__compute_loss_supervised(h[:, 1:, :], h_hat_s[:, :-1, :])
+            loss_supervised = self.__compute_loss_supervised(h, h_hat_s)
 
             self.log_dict({"loss/supervisor": loss_supervised}, on_step=True, on_epoch=True, prog_bar=True)
             self.manual_backward(loss_supervised)
@@ -140,6 +140,11 @@ class MyLightningModule(PLModule):
         # Joint training
         else:
             for _ in range(2):
+                opt_generator.zero_grad()
+                opt_supervisor.zero_grad()
+                opt_embedder.zero_grad()
+                opt_recoverer.zero_grad()
+
                 h = self.forward_embedder(x)
                 # h.shape = [batch_size, sequence_length, hidden_size]
 
@@ -165,15 +170,17 @@ class MyLightningModule(PLModule):
                 G_loss_U_e = self.__compute_loss_unsupervised(torch.ones_like(y_fake_e), y_fake_e)
                 loss_unsupervised = G_loss_U + G_loss_U_e
 
-                loss_supervised = self.__compute_loss_supervised(h[:, 1:, :], h_hat_s[:, :-1, :])
+                loss_supervised = self.__compute_loss_supervised(h, h_hat_s)
 
                 loss_stdmean = self.__compute_loss_stdmean(x, x_hat)
 
                 loss_generator = loss_unsupervised + 100 * torch.sqrt(loss_supervised) + 100 * loss_stdmean
 
                 self.log_correlation_distances(x, x_hat, stage="train")
-                self.log_dict({"loss/generator": loss_generator}, on_step=True, on_epoch=True, prog_bar=True)
-                self.manual_backward(loss_generator)
+                self.log_dict(
+                    {"loss/generator": torch.sqrt(loss_generator)}, on_step=True, on_epoch=True, prog_bar=True
+                )
+                self.manual_backward(loss_generator, retain_graph=True)
 
                 opt_generator.step()
                 opt_supervisor.step()
@@ -181,16 +188,18 @@ class MyLightningModule(PLModule):
                 x_tilde = self.forward_recoverer(h)
                 # x_tilde.shape = [batch_size, n_features, sequence_length]
 
-                G_loss_S = self.__compute_loss_supervised(h[:, 1:, :], h_hat_s[:, :-1, :])
-                E_loss_T0 = self.__compute_loss_supervised(x, x_tilde)
+                G_loss_S = self.__compute_loss_supervised(h, h_hat_s)
+                E_loss_T0 = self.__compute_loss_recontruction(x, x_tilde)
                 E_loss0 = 10 * torch.sqrt(E_loss_T0)
                 E_loss = E_loss0 + 0.1 * G_loss_S
 
-                self.log_dict({"loss/generator-autoencoder": E_loss}, on_step=True, on_epoch=True, prog_bar=True)
-                self.manual_backward(E_loss)
+                self.log_dict({"loss/joint-autoencoder": E_loss}, on_step=True, on_epoch=True, prog_bar=True)
+                self.manual_backward(E_loss, retain_graph=False)
 
                 opt_embedder.step()
                 opt_recoverer.step()
+
+            opt_discriminator.zero_grad()
 
             h = self.forward_embedder(x).detach()
             # h.shape = [batch_size, sequence_length, hidden_size]
@@ -222,83 +231,16 @@ class MyLightningModule(PLModule):
                 opt_discriminator.step()
 
     def validation_n_test_epoch_end(self, samples: Sequence[Dict]) -> None:
+        if self.current_epoch >= self.hparams.n_epochs_training_only_supervised:
 
-        # Aggregation of the batches
-        x, prices, volumes = list(), list(), list()
-        for batch in samples:
-            x.append(batch["x"])
-            if self.hparams.target_feature_price is not None:
-                prices.append(batch["prices"])
-            if self.hparams.target_feature_volume is not None:
-                volumes.append(batch["volumes"])
+            # Aggregation of the batches
+            dict_with_reals: Dict[str, torch.Tensor] = self.aggregate_from_batches(samples)
 
-        # Building the whole real sequences
-        x = torch.concatenate(x, dim=2).detach().cpu()
-        dict_with_reals = dict(x=x)
-        if self.hparams.target_feature_price is not None:
-            prices = torch.concatenate(prices, dim=2).detach().cpu()
-            dict_with_reals["prices"] = prices
-        if self.hparams.target_feature_volume is not None:
-            volumes = torch.concatenate(volumes, dim=2).detach().cpu()
-            dict_with_reals["volumes"] = volumes
+            # Autoregressive prediction
+            sequence_length = dict_with_reals["x"].shape[1]
+            dict_with_preds = self.predict_autoregressively(prediction_length=sequence_length)
 
-        dict_with_preds = self.predict_autoregressively(prediction_length=x.shape[2])
-
-        # Saving preds and reals in pickle files
-        self.save_files(dict_with_reals, dict_with_preds)
-
-        # Retrieving the pred_sequence and the real sequence
-        x_hat = dict_with_preds["x_hat"]
-
-        # Logging the correlations metrics
-        self.log_correlations(x_hat, "pred")
-        self.log_correlations(x, "real")
-        self.log_correlation_distances(x, x_hat, "val")
-
-        if self.current_epoch > 0:
-
-            pred_prices = None
-            # If there are prices
-            if self.hparams.target_feature_price is not None:
-                pred_prices = dict_with_preds["pred_prices"].numpy()
-
-                # Plot prices
-                self.log_plot_timeseries(prices, pred_prices, "Prices")
-
-                # Plots stylised facts
-                if self.hparams.dataset_type == "multistock":
-                    self.log_plot_sf_returns_distribution(prices, pred_prices)
-                    self.log_plot_sf_aggregational_gaussianity(prices, pred_prices)
-                    self.log_plot_sf_absence_autocorrelation(prices, pred_prices)
-                    self.log_plot_sf_volatility_clustering(prices, pred_prices)
-
-            pred_volumes = None
-            # If there are volumes
-            if self.hparams.target_feature_volume is not None:
-                pred_volumes = dict_with_preds["pred_volumes"].numpy()
-
-                # Plot volumes
-                self.log_plot_timeseries(volumes, pred_volumes, "Volumes")
-
-                # Logging volumes metrics
-                self.log_metrics_volume(volumes, pred_volumes)
-
-            # If there are both prices and volumes
-            if self.hparams.target_feature_price is not None and self.hparams.target_feature_volume is not None:
-                sequence_price, pred_sequence_price = (
-                    x[: self.hparams.n_stocks],
-                    x_hat[: self.hparams.n_stocks],
-                )
-                sequence_volume, pred_sequence_volume = (
-                    x[self.hparams.n_stocks :],
-                    x_hat[self.hparams.n_stocks :],
-                )
-
-                # Plot stylised fact
-                if self.hparams.dataset_type == "multistock":
-                    self.log_plot_sf_volume_volatility_correlation(
-                        sequence_price, pred_sequence_price, sequence_volume, pred_sequence_volume
-                    )
+            self.continue_validation_n_test_epoch_end(dict_with_reals, dict_with_preds)
 
     def predict_autoregressively(self, prediction_length):
         prediction_iterations = math.ceil(prediction_length / self.hparams.sequence_length)
@@ -314,40 +256,15 @@ class MyLightningModule(PLModule):
             x_hat.append(x_hat_)
 
         x_hat = torch.concatenate(x_hat, dim=1)
-        # x_hat.shape = [n_features, prediction_length]
+        # x_hat.shape = [n_features, prediction_length=sequence_length]
 
-        return_dict = dict(x_hat=x_hat)
-
-        x_hat = x_hat.numpy()
-
-        x_hat_prices = None
-        x_hat_volumes = None
-
-        # If there are prices
-        if self.hparams.target_feature_price is not None:
-            x_hat_prices = x_hat[: self.hparams.n_stocks, :]
-            pred_prices = self.pipeline_price.inverse_transform(x_hat_prices.T).T
-            return_dict["pred_prices"] = torch.Tensor(pred_prices)
-
-        # If there are both prices and volumes
-        elif self.hparams.target_feature_price is not None and self.hparams.target_feature_volume is not None:
-            x_hat_volumes = x_hat[self.hparams.n_stocks :, :]
-
-        # If there are only volumes
-        elif self.hparams.target_feature_volume is not None:
-            x_hat_volumes = x_hat[: self.hparams.n_stocks, :]
-
-        if self.hparams.target_feature_volume is not None:
-            pred_volumes = self.pipeline_volume.inverse_transform(x_hat_volumes.T).T
-            return_dict["pred_volumes"] = torch.Tensor(pred_volumes)
-
-        return return_dict
+        return self.unpack(x_hat)
 
     def __compute_loss_recontruction(self, x, x_tilde):
         return self.mse(x, x_tilde)
 
-    def __compute_loss_supervised(self, h, h_hat):
-        return self.mse(h, h_hat)
+    def __compute_loss_supervised(self, h, h_hat_s):
+        return self.mse(h[:, 1:, :], h_hat_s[:, :-1, :])
 
     def __compute_loss_unsupervised(self, zeros_or_ones, y):
         return self.bcewl(zeros_or_ones, y)
@@ -362,6 +279,9 @@ class MyLightningModule(PLModule):
         G_loss_V2 = torch.mean(torch.abs((x_hat.mean(dim=0)) - (x.mean(dim=0))))
 
         return G_loss_V1 + G_loss_V2
+
+    def on_train_start(self) -> None:
+        self.log_dict({"loss/generator": np.NaN})
 
     def configure_optimizers(self):
         """Choose what optimizers and learning-rate schedulers to use in your optimization.
@@ -426,5 +346,4 @@ def main(cfg: omegaconf.DictConfig) -> None:
 
 
 if __name__ == "__main__":
-
     main()

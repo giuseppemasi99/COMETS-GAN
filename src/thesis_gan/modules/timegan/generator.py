@@ -5,7 +5,7 @@ import torch.nn as nn
 class Generator(nn.Module):
     def __init__(
         self,
-        noise_features: int,
+        noise_dim: int,
         dropout: float,
         hidden_size=None,
         num_layers=None,
@@ -13,7 +13,7 @@ class Generator(nn.Module):
         super(Generator, self).__init__()
 
         self.gru = nn.GRU(
-            input_size=noise_features,
+            input_size=noise_dim,
             hidden_size=hidden_size,
             num_layers=num_layers,
             batch_first=True,
@@ -32,7 +32,7 @@ class Generator(nn.Module):
         o, _ = self.gru(noise)
         # o.shape = [batch_size, sequence_length, hidden_size]
 
-        e_hat = self.fc1(o)
+        e_hat = self.fc(o)
         # o.shape = [batch_size, sequence_length, hidden_size]
 
         return e_hat
