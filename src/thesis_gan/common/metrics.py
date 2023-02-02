@@ -382,7 +382,7 @@ def get_plot_sf_volatility_clustering(prices, pred_prices, stock_names):
 
 
 # PLOT VOLUME VOLATILITY CORRELATION
-def get_plot_sf_volume_volatility_correlation(x_price, x_hat_price, x_volume, x_hat_volume, stock_names, delta):
+def get_plot_sf_volume_volatility_correlation(x_price, x_hat_price, x_volume, x_hat_volume, stock_names, delta=15):
     real_avg_log_returns = compute_avg_log_returns(x_price, delta)
     real_avg_volumes = compute_avg_volumes(x_volume, delta)
     pred_avg_log_returns = compute_avg_log_returns(x_hat_price, delta)

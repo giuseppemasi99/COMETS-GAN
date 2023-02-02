@@ -1,0 +1,40 @@
+model_type: 'conv'
+
+dataset_train_target: thesis_gan.data.dataset_train_multistock.StockDatasetTrain
+
+module:
+  _target_: thesis_gan.pl_modules.pl_module_conv.MyLightningModule
+
+  save_reals: True
+
+  dataset_type: ${data.dataset_type}
+  model_type: ${model.model_type}
+
+  encoder_length: ${data.encoder_length}
+  decoder_length: ${data.decoder_length}
+
+  n_critic: 5
+
+  optimizer_g:
+    _target_: torch.optim.RMSprop
+    lr: 1e-4
+
+  optimizer_d:
+    _target_: torch.optim.RMSprop
+    lr: 3e-4
+
+  generator:
+    _target_: thesis_gan.modules.generator.tcn.TCNGenerator
+    encoder_length: ${data.encoder_length}
+    decoder_length: ${data.decoder_length}
+    hidden_dim: 256 # 128 for benchmark
+    dropout: 0.2
+
+  discriminator:
+    _target_: thesis_gan.modules.discriminator.cnn.CNNDiscriminator
+    encoder_length: ${data.encoder_length}
+    decoder_length: ${data.decoder_length}
+    hidden_dim: 256 # 128 for benchmark
+    dropout: 0.2
+    compute_corr: ${data.compute_corr}
+    alpha:

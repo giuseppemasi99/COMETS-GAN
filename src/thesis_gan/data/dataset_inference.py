@@ -20,12 +20,12 @@ class StockDatasetInference(StockDataset):
         target_feature_price: str,
         target_feature_volume: str,
         stock_names: List[str],
-        encoder_length: int,
-        decoder_length: int,
         stride: int,
         data_pipeline_price: Pipeline,
         data_pipeline_volume: Pipeline,
         split: Split,
+        encoder_length: int = 390,
+        decoder_length: int = 150,
     ) -> None:
         super().__init__(
             path,
@@ -45,7 +45,7 @@ class StockDatasetInference(StockDataset):
         return ((len(self.data) - self.encoder_length) // self.decoder_length) + 1
 
     def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
-
+        # TODO: return just one item!
         if index == 0:
             sequence_slice = slice(index, self.encoder_length)
         else:
@@ -64,10 +64,10 @@ def main(cfg: omegaconf.DictConfig) -> None:
     Args:
         cfg: the hydra configuration
     """
-    pipeline_price = hydra.utils.instantiate(cfg.nn.data.data_pipeline_price)
-    pipeline_volume = hydra.utils.instantiate(cfg.nn.data.data_pipeline_volume)
+    pipeline_price = hydra.utils.instantiate(cfg.data.data_pipeline_price)
+    pipeline_volume = hydra.utils.instantiate(cfg.data.data_pipeline_volume)
     _: Dataset = hydra.utils.instantiate(
-        cfg.nn.data.datasets.val[0],
+        cfg.data.datasets.val[0],
         split="val",
         data_pipeline_price=pipeline_price,
         data_pipeline_volume=pipeline_volume,

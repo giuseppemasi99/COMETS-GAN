@@ -81,10 +81,10 @@ def main(cfg: omegaconf.DictConfig) -> None:
     Args:
         cfg: the hydra configuration
     """
-    pipeline_price = hydra.utils.instantiate(cfg.nn.data.data_pipeline_price)
-    pipeline_volume = hydra.utils.instantiate(cfg.nn.data.data_pipeline_volume)
+    pipeline_price = hydra.utils.instantiate(cfg.data.data_pipeline_price)
+    pipeline_volume = hydra.utils.instantiate(cfg.data.data_pipeline_volume)
     _: Dataset = hydra.utils.instantiate(
-        cfg.nn.data.datasets.train,
+        cfg.data.datasets.train,
         split="train",
         data_pipeline_price=pipeline_price,
         data_pipeline_volume=pipeline_volume,

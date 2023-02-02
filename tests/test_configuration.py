@@ -13,8 +13,8 @@ def test_callbacks_instantiation(cfg: DictConfig) -> None:
 
 
 def test_model_instantiation(cfg: DictConfig) -> None:
-    datamodule = hydra.utils.instantiate(cfg.nn.data, _recursive_=False)
-    hydra.utils.instantiate(cfg.nn.module, metadata=datamodule.metadata, _recursive_=False)
+    datamodule = hydra.utils.instantiate(cfg.data, _recursive_=False)
+    hydra.utils.instantiate(cfg.model.module, metadata=datamodule.metadata, _recursive_=False)
 
 
 def test_cfg_parametrization(cfg_all: DictConfig):

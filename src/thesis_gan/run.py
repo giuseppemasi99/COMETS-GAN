@@ -16,6 +16,7 @@ from nn_core.serialization import NNCheckpointIO
 
 # Force the execution of __init__.py if this file is executed directly.
 import thesis_gan  # noqa
+from thesis_gan.common.utils import complete_configuration
 
 pylogger = logging.getLogger(__name__)
 
@@ -56,21 +57,21 @@ def run(cfg: DictConfig) -> str:
         pylogger.info(f"Debug mode <{cfg.train.trainer.fast_dev_run=}>. Forcing debugger friendly configuration!")
         # Debuggers don't like GPUs nor multiprocessing
         cfg.train.trainer.gpus = 0
-        cfg.nn.data.num_workers.train = 0
-        cfg.nn.data.num_workers.val = 0
-        cfg.nn.data.num_workers.test = 0
+        cfg.data.num_workers.train = 0
+        cfg.data.num_workers.val = 0
+        cfg.data.num_workers.test = 0
 
     cfg.core.tags = enforce_tags(cfg.core.get("tags", None))
 
     # Instantiate datamodule
-    pylogger.info(f"Instantiating <{cfg.nn.data['_target_']}>")
-    datamodule: pl.LightningDataModule = hydra.utils.instantiate(cfg.nn.data, _recursive_=False)
+    pylogger.info(f"Instantiating <{cfg.data.module['_target_']}>")
+    datamodule: pl.LightningDataModule = hydra.utils.instantiate(cfg.data.module, _recursive_=False)
 
     metadata: Dict = getattr(datamodule, "metadata", None)
 
     # Instantiate model
-    pylogger.info(f"Instantiating <{cfg.nn.module['_target_']}>")
-    model: pl.LightningModule = hydra.utils.instantiate(cfg.nn.module, _recursive_=False, metadata=metadata)
+    pylogger.info(f"Instantiating <{cfg.model.module['_target_']}>")
+    model: pl.LightningModule = hydra.utils.instantiate(cfg.model.module, _recursive_=False, metadata=metadata)
 
     # Instantiate the callbacks
     template_core: NNTemplateCore = NNTemplateCore(
@@ -111,6 +112,8 @@ def main(cfg: omegaconf.DictConfig):
         return tuple(args)
 
     OmegaConf.register_new_resolver("as_tuple", resolve_tuple)
+
+    cfg = complete_configuration(cfg)
 
     run(cfg)
 

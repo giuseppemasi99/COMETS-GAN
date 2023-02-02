@@ -339,7 +339,7 @@ def main(cfg: omegaconf.DictConfig) -> None:
         cfg: the hydra configuration
     """
     _: pl.LightningModule = hydra.utils.instantiate(
-        cfg.nn.module,
+        cfg.model.module,
         # optim=cfg.optim,
         _recursive_=False,
     )

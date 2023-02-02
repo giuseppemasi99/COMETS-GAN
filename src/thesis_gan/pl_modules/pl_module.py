@@ -44,19 +44,7 @@ class PLModule(pl.LightningModule):
 
         self.metadata = metadata
 
-        if self.hparams.dataset_type == "multistock":
-            self.hparams.n_stocks = len(self.hparams.stock_names)
-            self.feature_names = list()
-            if self.hparams.target_feature_price is not None:
-                self.feature_names.extend(
-                    [stock_name + "_" + self.hparams.target_feature_price for stock_name in self.hparams.stock_names]
-                )
-            if self.hparams.target_feature_volume is not None:
-                self.feature_names.extend(
-                    [stock_name + "_" + self.hparams.target_feature_volume for stock_name in self.hparams.stock_names]
-                )
-            self.hparams.n_features = len(self.feature_names)
-
+        # TODO: controllare pipeline quando benchmark dataset
         self.pipeline_price = metadata.data_pipeline_price
         self.pipeline_volume = metadata.data_pipeline_volume
 
@@ -188,7 +176,6 @@ class PLModule(pl.LightningModule):
             x_volume,
             x_hat_volume,
             self.hparams.stock_names,
-            self.hparams.delta,
         )
         title = f"Volume-Volatility Correlation - Epoch {self.current_epoch}"
         # self.logger.experiment.log({title: wandb.Image(fig)})
@@ -364,7 +351,7 @@ def main(cfg: omegaconf.DictConfig) -> None:
         cfg: the hydra configuration
     """
     _: pl.LightningModule = hydra.utils.instantiate(
-        cfg.nn.module,
+        cfg.model.module,
         # optim=cfg.optim,
         _recursive_=False,
     )

@@ -9,15 +9,15 @@ data:
   datasets:
     train:
       _target_: thesis_gan.data.discriminative_dataset.DiscriminativeDataset
-      path: ${nn.data_dir}/train.pt
+      path: ${model.data_dir}/train.pt
 
     val:
       - _target_: thesis_gan.data.discriminative_dataset.DiscriminativeDataset
-        path: ${nn.data_dir}/test.pt
+        path: ${model.data_dir}/test.pt
 
     test:
       - _target_: thesis_gan.data.discriminative_dataset.DiscriminativeDataset
-        path: ${nn.data_dir}/test.pt
+        path: ${model.data_dir}/test.pt
 
   gpus: ${train.trainer.gpus}
 
@@ -34,8 +34,8 @@ data:
 module:
   _target_: thesis_gan.pl_modules.discriminative_pl_module.MyLightningModule
 
-  n_features: ${nn.n_features}
-  hidden_dim: ${nn.hidden_dim}
+  n_features: ${model.n_features}
+  hidden_dim: ${model.hidden_dim}
 
   optimizer:
     #  Adam-oriented deep learning

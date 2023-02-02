@@ -207,8 +207,8 @@ def main(cfg: omegaconf.DictConfig) -> None:
     Args:
         cfg: the hydra configuration
     """
-    # data_pipeline: Pipeline = hydra.utils.instantiate(cfg.nn.data.data_pipeline)
-    datamodule: pl.LightningDataModule = hydra.utils.instantiate(cfg.nn.data, _recursive_=False)
+    # data_pipeline: Pipeline = hydra.utils.instantiate(cfg.model.data.data_pipeline)
+    datamodule: pl.LightningDataModule = hydra.utils.instantiate(cfg.data.module, _recursive_=False)
     datamodule.setup("fit")
     print(datamodule.train_dataset.data_pipeline_price)
     print(datamodule.train_dataset.data_pipeline_volume)

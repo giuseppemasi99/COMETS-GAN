@@ -45,7 +45,6 @@ class StockDatasetTimeGAN(StockDataset):
 
     def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
         sequence_slice = slice(self.stride * index, self.stride * index + self.sequence_length)
-
         return self.get_dict(sequence_slice)
 
 
@@ -62,10 +61,10 @@ def main(cfg: omegaconf.DictConfig) -> None:
 
     OmegaConf.register_new_resolver("as_tuple", resolve_tuple)
 
-    pipeline_price = hydra.utils.instantiate(cfg.nn.data.data_pipeline_price)
-    pipeline_volume = hydra.utils.instantiate(cfg.nn.data.data_pipeline_volume)
+    pipeline_price = hydra.utils.instantiate(cfg.data.data_pipeline_price)
+    pipeline_volume = hydra.utils.instantiate(cfg.data.data_pipeline_volume)
     _: Dataset = hydra.utils.instantiate(
-        cfg.nn.data.datasets.train,
+        cfg.data.datasets.train,
         split="train",
         data_pipeline_price=pipeline_price,
         data_pipeline_volume=pipeline_volume,
