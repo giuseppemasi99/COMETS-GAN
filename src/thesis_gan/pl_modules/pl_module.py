@@ -122,7 +122,10 @@ class PLModule(pl.LightningModule):
             self.hparams.stock_names,
         )
         title = f"Returns distribution - Epoch {self.current_epoch}"
-        self.logger.experiment.log({title: wandb.Image(fig)})
+        # self.logger.experiment.log({title: wandb.Image(fig)})
+        path = self.logger.experiment.dir + "/media/images/returns_distribution"
+        self.__create_dirs_if_not_exist(path)
+        plt.savefig(path + "/" + title)
         plt.close(fig)
 
     def log_plot_sf_aggregational_gaussianity(
@@ -137,7 +140,10 @@ class PLModule(pl.LightningModule):
                 stock_name,
             )
             title = f"Distribution of returns with increased time scale - {stock_name} - Epoch {self.current_epoch}"
-            self.logger.experiment.log({title: wandb.Image(fig)})
+            # self.logger.experiment.log({title: wandb.Image(fig)})
+            path = self.logger.experiment.dir + "/media/images/aggregational_gaussianity"
+            self.__create_dirs_if_not_exist(path)
+            plt.savefig(path + "/" + title)
             plt.close(fig)
 
     def log_plot_sf_absence_autocorrelation(
@@ -152,7 +158,10 @@ class PLModule(pl.LightningModule):
                 stock_name,
             )
             title = f"Returns Autocorrelations - {stock_name} - Epoch {self.current_epoch}"
-            self.logger.experiment.log({title: wandb.Image(fig)})
+            # self.logger.experiment.log({title: wandb.Image(fig)})
+            path = self.logger.experiment.dir + "/media/images/absence_autocorrelation"
+            self.__create_dirs_if_not_exist(path)
+            plt.savefig(path + "/" + title)
             plt.close(fig)
 
     def log_plot_sf_volatility_clustering(
@@ -166,7 +175,10 @@ class PLModule(pl.LightningModule):
             self.hparams.stock_names,
         )
         title = f"Volatility Clustering - Epoch {self.current_epoch}"
-        self.logger.experiment.log({title: wandb.Image(fig)})
+        # self.logger.experiment.log({title: wandb.Image(fig)})
+        path = self.logger.experiment.dir + "/media/images/volatility_clustering"
+        self.__create_dirs_if_not_exist(path)
+        plt.savefig(path + "/" + title)
         plt.close(fig)
 
     def log_plot_sf_volume_volatility_correlation(self, x_price, x_hat_price, x_volume, x_hat_volume) -> None:
@@ -179,7 +191,10 @@ class PLModule(pl.LightningModule):
             self.hparams.delta,
         )
         title = f"Volume-Volatility Correlation - Epoch {self.current_epoch}"
-        self.logger.experiment.log({title: wandb.Image(fig)})
+        # self.logger.experiment.log({title: wandb.Image(fig)})
+        path = self.logger.experiment.dir + "/media/images/volume_volatility_correlation"
+        self.__create_dirs_if_not_exist(path)
+        plt.savefig(path + "/" + title)
         plt.close(fig)
 
     def log_metrics_volume(self, ts_real: np.ndarray, ts_pred: np.ndarray) -> None:
@@ -198,8 +213,7 @@ class PLModule(pl.LightningModule):
 
     def save_dict_in_pickle_file(self, d, file_name):
         if hasattr(self.logger, "run_dir"):
-            if not os.path.exists(self.logger.run_dir):
-                os.makedirs(self.logger.run_dir)
+            self.__create_dirs_if_not_exist(self.logger.run_dir)
 
             path_file = f"{self.logger.run_dir}/{file_name}"
             if not os.path.exists(path_file):
@@ -335,6 +349,11 @@ class PLModule(pl.LightningModule):
             # Plot stylised fact
             if self.hparams.dataset_type == "multistock":
                 self.log_plot_sf_volume_volatility_correlation(x_price, x_hat_price, x_volume, x_hat_volume)
+
+    @staticmethod
+    def __create_dirs_if_not_exist(path: str) -> None:
+        if not os.path.exists(path):
+            os.makedirs(path)
 
 
 @hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default", version_base=None)

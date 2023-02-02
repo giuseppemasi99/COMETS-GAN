@@ -126,8 +126,8 @@ module:
     hidden_size: ${..hidden_size}
     num_layers: ${..num_layers}
 
-  n_epochs_training_only_reconstruction: 50
-  n_epochs_training_only_supervised: 100
+  n_epochs_training_only_reconstruction: 100
+  n_epochs_training_only_supervised: 150
 
   target_feature_price: ${..target_feature_price}
   target_feature_volume: ${..target_feature_volume}
