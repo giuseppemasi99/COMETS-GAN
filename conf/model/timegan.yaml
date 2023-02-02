@@ -1,0 +1,74 @@
+model_type: 'timegan'
+
+dataset_train_target: thesis_gan.data.dataset_train_timegan.StockDatasetTrain
+
+sequence_length: 100
+
+module:
+  _target_: thesis_gan.pl_modules.pl_module_timegan.MyLightningModule
+
+  save_reals: True
+
+  dataset_type: ${data.dataset_type}
+  model_type: ${model.model_type}
+
+  hidden_size: 24
+  num_layers: 3
+  noise_dim: 4
+
+  discriminator_threshold: 0.15
+
+  n_epochs_training_only_reconstruction: 100
+  n_epochs_training_only_supervised: 150
+
+  sequence_length: ${model.sequence_length}
+
+  optimizer_embedder:
+    _target_: torch.optim.Adam
+    lr: 0.001
+
+  optimizer_recoverer:
+    _target_: torch.optim.Adam
+    lr: 0.001
+
+  optimizer_supervisor:
+    _target_: torch.optim.Adam
+    lr: 0.001
+
+  optimizer_generator:
+    _target_: torch.optim.Adam
+    lr: 0.001
+
+  optimizer_discriminator:
+    _target_: torch.optim.Adam
+    lr: 0.001
+
+  embedder:
+    _target_: thesis_gan.modules.timegan.embedder.Embedder
+    dropout: 0
+    hidden_size: ${model.module.hidden_size}
+    num_layers: ${model.module.num_layers}
+
+  recoverer:
+    _target_: thesis_gan.modules.timegan.recoverer.Recoverer
+    dropout: 0
+    hidden_size: ${model.module.hidden_size}
+    num_layers: ${model.module.num_layers}
+
+  supervisor:
+    _target_: thesis_gan.modules.timegan.supervisor.Supervisor
+    dropout: 0
+    hidden_size: ${model.module.hidden_size}
+    num_layers: ${model.module.num_layers}  # -1
+
+  generator:
+    _target_: thesis_gan.modules.timegan.generator.Generator
+    dropout: 0
+    hidden_size: ${model.module.hidden_size}
+    num_layers: ${model.module.num_layers}
+
+  discriminator:
+    _target_: thesis_gan.modules.timegan.discriminator.Discriminator
+    dropout: 0
+    hidden_size: ${model.module.hidden_size}
+    num_layers: ${model.module.num_layers}
