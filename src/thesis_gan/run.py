@@ -57,9 +57,7 @@ def run(cfg: DictConfig) -> str:
         pylogger.info(f"Debug mode <{cfg.train.trainer.fast_dev_run=}>. Forcing debugger friendly configuration!")
         # Debuggers don't like GPUs nor multiprocessing
         cfg.train.trainer.gpus = 0
-        cfg.data.num_workers.train = 0
-        cfg.data.num_workers.val = 0
-        cfg.data.num_workers.test = 0
+        cfg.data.num_workers = 0
 
     cfg.core.tags = enforce_tags(cfg.core.get("tags", None))
 

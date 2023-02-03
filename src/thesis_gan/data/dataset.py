@@ -21,10 +21,10 @@ class StockDataset(Dataset):
         target_feature_price: str,
         target_feature_volume: str,
         stock_names: List[str],
-        stride: int,
         data_pipeline_price: Pipeline,
         data_pipeline_volume: Pipeline,
         split: Split,
+        stride: int = None,
     ) -> None:
         super().__init__()
 

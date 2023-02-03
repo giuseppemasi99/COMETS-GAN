@@ -1,6 +1,6 @@
 model_type: 'timegan'
 
-dataset_train_target: thesis_gan.data.dataset_train_timegan.StockDatasetTrain
+dataset_train_target: thesis_gan.data.stockdataset_train_timegan.StockDatasetTrainTimegan
 
 sequence_length: 100
 

@@ -1,6 +1,6 @@
 model_type: 'conv'
 
-dataset_train_target: thesis_gan.data.dataset_train_multistock.StockDatasetTrain
+dataset_train_target: thesis_gan.data.stockdataset_train_conv.StockDatasetTrainConv
 
 module:
   _target_: thesis_gan.pl_modules.pl_module_conv.MyLightningModule

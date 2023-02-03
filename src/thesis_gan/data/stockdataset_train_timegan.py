@@ -14,7 +14,7 @@ from thesis_gan.data.dataset import StockDataset
 from thesis_gan.data.pipeline import Pipeline
 
 
-class StockDatasetTimeGAN(StockDataset):
+class StockDatasetTrainTimegan(StockDataset):
     def __init__(
         self,
         path: Path,
@@ -32,10 +32,10 @@ class StockDatasetTimeGAN(StockDataset):
             target_feature_price,
             target_feature_volume,
             stock_names,
-            stride,
             data_pipeline_price,
             data_pipeline_volume,
             split,
+            stride,
         )
 
         self.sequence_length = sequence_length

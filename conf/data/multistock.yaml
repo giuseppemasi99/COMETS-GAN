@@ -1,7 +1,7 @@
 dataset_type: multistock
 stock_names: [KO, PEP, NVDA, KSU]
 
-target_feature_price: midprice
+target_feature_price: mid_price
 target_feature_volume: volume
 
 encoder_length: 390
