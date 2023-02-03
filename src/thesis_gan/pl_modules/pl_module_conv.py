@@ -47,11 +47,10 @@ class MyLightningModule(PLModule):
         return out
 
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int, optimizer_idx: int) -> torch.Tensor:
-        # batch.keys() = ['x', 'y', 'x_prices', 'x_volumes']
-        x = batch["x"]
-        # x.shape [batch_size, n_features, encoder_length]
+        # batch.keys() = ['x', 'y']
 
-        y_real = batch["y"]
+        x, y_real = batch["x"], batch["y"]
+        # x.shape [batch_size, n_features, encoder_length]
         # y_real.shape [batch_size, n_features, decoder_length]
 
         # Sample noise
@@ -76,11 +75,15 @@ class MyLightningModule(PLModule):
             self.log_dict({"loss/discriminator": d_loss}, on_step=True, on_epoch=True, prog_bar=True)
             return d_loss
 
-    def validation_n_test_epoch_end(self, samples: Sequence[Dict]) -> None:
+    def validation_n_test_epoch_end(self, samples: Sequence[Dict[str, torch.Tensor]]) -> None:
         # TODO: Controllare last_prices & last_volumes
 
         # Aggregation of the batches
         dict_with_reals: Dict[str, torch.Tensor] = self.aggregate_from_batches(samples)
+
+        x = dict_with_reals["x"]
+        # x.shape = [n_features, sequence_length]
+        sequence_length = x.shape[1]
 
         prices, volumes, last_prices, last_volumes = None, None, None, None
         if self.hparams.target_feature_price is not None:
@@ -90,10 +93,10 @@ class MyLightningModule(PLModule):
             volumes = dict_with_reals["volumes"]
             last_volumes = volumes[: self.hparams.n_stocks, self.hparams.encoder_length - 1].cpu()
 
+        print(x.shape)
+        print(prices.shape)
+        print(volumes.shape)
         # Autoregressive prediction
-        x = dict_with_reals["x"]
-        # x.shape = [n_features, sequence_length]
-        sequence_length = x.shape[1]
         dict_with_preds: Dict[str, torch.Tensor] = self.predict_autoregressively(
             x, last_prices, last_volumes, prediction_length=sequence_length - self.hparams.encoder_length
         )

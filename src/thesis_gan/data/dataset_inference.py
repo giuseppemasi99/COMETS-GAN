@@ -23,8 +23,6 @@ class StockDatasetInference(StockDataset):
         data_pipeline_price: Pipeline,
         data_pipeline_volume: Pipeline,
         split: Split,
-        encoder_length: int = 390,
-        decoder_length: int = 150,
     ) -> None:
         super().__init__(
             path,
@@ -36,23 +34,23 @@ class StockDatasetInference(StockDataset):
             split,
         )
 
-        self.encoder_length = encoder_length
-        self.decoder_length = decoder_length
-
     def __len__(self) -> int:
-        return ((len(self.data) - self.encoder_length) // self.decoder_length) + 1
+        return 1
 
     def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
-        # TODO: return just one item!
-        if index == 0:
-            sequence_slice = slice(index, self.encoder_length)
-        else:
-            sequence_slice = slice(
-                self.encoder_length + (index - 1) * self.decoder_length,
-                self.encoder_length + index * self.decoder_length,
-            )
 
-        return self.get_dict(sequence_slice)
+        x = torch.as_tensor(self.data.T, dtype=torch.float)
+        return_dict = dict(x=x)
+
+        if self.target_feature_price is not None:
+            prices = torch.as_tensor(self.prices.T, dtype=torch.float)
+            return_dict["prices"] = prices
+
+        if self.target_feature_volume is not None:
+            volumes = torch.as_tensor(self.volumes.T, dtype=torch.float)
+            return_dict["volumes"] = volumes
+
+        return return_dict
 
 
 @hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default", version_base=None)

@@ -44,7 +44,7 @@ class PLModule(pl.LightningModule):
 
         self.metadata = metadata
 
-        # TODO: controllare pipeline quando benchmark dataset
+        # TODO: controllare pipeline quando benchmark datasets
         self.pipeline_price = metadata.data_pipeline_price
         self.pipeline_volume = metadata.data_pipeline_volume
 
@@ -207,25 +207,15 @@ class PLModule(pl.LightningModule):
                 with open(path_file, "wb") as handle:
                     pickle.dump(d, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    def aggregate_from_batches(self, samples: Sequence[Dict]) -> Dict[str, torch.Tensor]:
-        # Aggregation of the batches
-        x, prices, volumes = list(), list(), list()
-        for batch in samples:
-            x.append(batch["x"])
-            if self.hparams.target_feature_price is not None:
-                prices.append(batch["prices"])
-            if self.hparams.target_feature_volume is not None:
-                volumes.append(batch["volumes"])
+    def aggregate_from_batches(self, samples: Sequence[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
 
-        # Building the whole real sequences
-        x = torch.concatenate(x, dim=2).squeeze().detach()
-        dict_with_reals: Dict[str, torch.Tensor] = dict(x=x)
+        dict_with_reals = samples[0]
+
+        dict_with_reals["x"] = dict_with_reals["x"].squeeze().detach()
         if self.hparams.target_feature_price is not None:
-            prices = torch.concatenate(prices, dim=2).squeeze().detach()
-            dict_with_reals["prices"] = prices
+            dict_with_reals["prices"] = dict_with_reals["prices"].squeeze().detach()
         if self.hparams.target_feature_volume is not None:
-            volumes = torch.concatenate(volumes, dim=2).squeeze().detach()
-            dict_with_reals["volumes"] = volumes
+            dict_with_reals["volumes"] = dict_with_reals["volumes"].squeeze().detach()
 
         return dict_with_reals
 

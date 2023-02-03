@@ -96,7 +96,7 @@ class MyLightningModule(PLModule):
         return y
 
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int):
-        # batch.keys() = ['x', 'x_prices']
+        # batch.keys() = ['x']
 
         opt_embedder, opt_recoverer, opt_supervisor, opt_generator, opt_discriminator = self.optimizers()
 
@@ -230,7 +230,7 @@ class MyLightningModule(PLModule):
                 self.manual_backward(D_loss)
                 opt_discriminator.step()
 
-    def validation_n_test_epoch_end(self, samples: Sequence[Dict]) -> None:
+    def validation_n_test_epoch_end(self, samples: Sequence[Dict[str, torch.Tensor]]) -> None:
         if self.current_epoch >= self.hparams.n_epochs_training_only_supervised:
 
             # Aggregation of the batches

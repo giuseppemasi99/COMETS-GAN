@@ -45,7 +45,11 @@ class StockDatasetTrainTimegan(StockDataset):
 
     def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
         sequence_slice = slice(self.stride * index, self.stride * index + self.sequence_length)
-        return self.get_dict(sequence_slice)
+
+        x = torch.as_tensor(self.data[sequence_slice].T, dtype=torch.float)
+        return_dict = dict(x=x)
+
+        return return_dict
 
 
 @hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default", version_base=None)
