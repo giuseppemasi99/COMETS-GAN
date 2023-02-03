@@ -61,11 +61,11 @@ class PLModule(pl.LightningModule):
         self.validation_n_test_epoch_end(samples)
 
     def log_correlations(self, y: torch.Tensor, real_o_pred: str) -> None:
-        d = get_correlations_dict(y, real_o_pred, self.feature_names)
+        d = get_correlations_dict(y, real_o_pred, self.hparams.feature_names)
         self.log_dict(d, on_step=False, on_epoch=True, prog_bar=False)
 
     def log_correlation_distances(self, y_real: torch.Tensor, y_pred: torch.Tensor, stage: str) -> None:
-        d = get_correlation_distances_dict(y_real, y_pred, stage, self.feature_names)
+        d = get_correlation_distances_dict(y_real, y_pred, stage, self.hparams.feature_names)
         self.log_dict(d, on_step=False, on_epoch=True, prog_bar=False)
 
     def log_plot_timeseries(

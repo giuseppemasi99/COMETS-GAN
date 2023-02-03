@@ -256,7 +256,10 @@ class MyLightningModule(PLModule):
             x_hat.append(x_hat_)
 
         x_hat = torch.concatenate(x_hat, dim=1)
-        # x_hat.shape = [n_features, prediction_length=sequence_length]
+        # x_hat.shape = [n_features, prediction_iterations*sequence_length]
+
+        x_hat = x_hat[:, :prediction_length]
+        # x_hat.shape = [n_features, prediction_length]
 
         return self.unpack(x_hat)
 
