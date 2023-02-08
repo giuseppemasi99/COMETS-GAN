@@ -126,10 +126,10 @@ class MyLightningModule(PLModule):
                 x_hat = self.forward_recoverer(h_hat)
                 # x_hat.shape = [batch_size, n_features, sequence_length]
 
-                y_real = self.forward_discriminator(h).detach()
+                y_real = self.forward_discriminator(h)
                 # y_fake.shape = [batch_size, sequence_length, 1]
 
-                y_fake = self.forward_discriminator(h_hat).detach()
+                y_fake = self.forward_discriminator(h_hat)
                 # y_fake_e.shape = [batch_size, sequence_length, 1]
 
                 loss_unsupervised = self.__compute_loss_unsupervised(y_real, y_fake)
@@ -150,9 +150,11 @@ class MyLightningModule(PLModule):
                 # x_tilde.shape = [batch_size, n_features, sequence_length]
 
                 loss_reconstruction = 10 * torch.sqrt(self.__compute_loss_recontruction(x, x_tilde))
-                loss = loss_reconstruction + loss_supervised
-                self.log_dict({"loss/joint-autoencoder": loss}, on_step=True, on_epoch=True, prog_bar=True)
-                self.manual_backward(loss, retain_graph=False)
+
+                self.log_dict(
+                    {"loss/joint-autoencoder": loss_reconstruction}, on_step=True, on_epoch=True, prog_bar=True
+                )
+                self.manual_backward(loss_reconstruction, retain_graph=False)
 
                 opt_embedder.step()
                 opt_recoverer.step()
