@@ -23,6 +23,8 @@ class Embedder(nn.Module):
 
         self.fc = nn.Linear(hidden_size, hidden_size)
 
+        self.sigmoid = nn.Sigmoid()
+
     def forward(self, x):
         # x.shape = [batch_size, n_features, sequence_length]
 
@@ -34,5 +36,7 @@ class Embedder(nn.Module):
 
         h = self.fc(h)
         # h.shape = [batch_size, sequence_length, hidden_size]
+
+        h = self.sigmoid(h)
 
         return h

@@ -18,7 +18,7 @@ module:
 
   discriminator_threshold: 0.15
 
-  n_epochs_training_only_autoencoder: 1
+  n_epochs_training_only_autoencoder: 100
 
   sequence_length: ${model.sequence_length}
 

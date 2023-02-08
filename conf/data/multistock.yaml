@@ -19,7 +19,7 @@ module:
   data_pipeline_price:
     _target_: thesis_gan.data.pipeline.LogReturnPipeline
     scaler:
-      _target_: sklearn.preprocessing.StandardScaler
+      _target_: sklearn.preprocessing.MinMaxScaler  # StandardScaler
 
   data_pipeline_volume:
     _target_: thesis_gan.data.pipeline.ScalerPipeline

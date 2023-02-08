@@ -17,6 +17,8 @@ class Recoverer(nn.Module):
 
         self.fc = nn.Linear(hidden_size, n_features)
 
+        self.sigmoid = nn.Sigmoid()
+
     def forward(self, h):
         # h.shape = [batch_size, sequence_length, hidden_dim]
 
@@ -28,5 +30,7 @@ class Recoverer(nn.Module):
 
         x_reconstructed = torch.permute(x_reconstructed, (0, 2, 1))
         # x_reconstructed.shape = [batch_size, n_features, sequence_length]
+
+        x_reconstructed = self.sigmoid(x_reconstructed)
 
         return x_reconstructed

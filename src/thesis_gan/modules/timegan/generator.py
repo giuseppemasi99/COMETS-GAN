@@ -23,6 +23,8 @@ class Generator(nn.Module):
 
         self.fc = nn.Linear(hidden_size, hidden_size)
 
+        self.sigmoid = nn.Sigmoid()
+
     def forward(self, noise):
         # noise.shape = [batch_size, noise_dim, sequence_length]
 
@@ -34,5 +36,7 @@ class Generator(nn.Module):
 
         e_hat = self.fc(o)
         # o.shape = [batch_size, sequence_length, hidden_size]
+
+        e_hat = self.sigmoid(e_hat)
 
         return e_hat
