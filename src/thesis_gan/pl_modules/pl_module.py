@@ -85,10 +85,8 @@ class PLModule(pl.LightningModule):
             )
         else:
 
-            if self.current_epoch < self.hparams.n_epochs_training_only_reconstruction:
+            if self.current_epoch < self.hparams.n_epochs_training_only_autoencoder:
                 stage = "Only reconstruction"
-            elif self.current_epoch < self.hparams.n_epochs_training_only_supervised:
-                stage = "Only supervised"
             else:
                 stage = "Joint"
 
@@ -274,6 +272,7 @@ class PLModule(pl.LightningModule):
             f"target_volume={self.hparams.target_feature_volume}"
             f".pickle",
         )
+
         if self.hparams.save_reals:
             self.save_dict_in_pickle_file(dict_with_reals, file_name="reals.pickle")
 

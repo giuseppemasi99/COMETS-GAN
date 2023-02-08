@@ -18,8 +18,7 @@ module:
 
   discriminator_threshold: 0.15
 
-  n_epochs_training_only_reconstruction: 100
-  n_epochs_training_only_supervised: 150
+  n_epochs_training_only_autoencoder: 1
 
   sequence_length: ${model.sequence_length}
 
@@ -31,17 +30,13 @@ module:
     _target_: torch.optim.Adam
     lr: 0.001
 
-  optimizer_supervisor:
-    _target_: torch.optim.Adam
-    lr: 0.001
-
   optimizer_generator:
     _target_: torch.optim.Adam
-    lr: 0.001
+    lr: 0.01
 
   optimizer_discriminator:
     _target_: torch.optim.Adam
-    lr: 0.001
+    lr: 0.01
 
   embedder:
     _target_: thesis_gan.modules.timegan.embedder.Embedder
@@ -54,12 +49,6 @@ module:
     dropout: 0
     hidden_size: ${model.module.hidden_size}
     num_layers: ${model.module.num_layers}
-
-  supervisor:
-    _target_: thesis_gan.modules.timegan.supervisor.Supervisor
-    dropout: 0
-    hidden_size: ${model.module.hidden_size}
-    num_layers: ${model.module.num_layers}  # -1
 
   generator:
     _target_: thesis_gan.modules.timegan.generator.Generator

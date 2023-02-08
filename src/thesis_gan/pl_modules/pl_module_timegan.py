@@ -37,11 +37,6 @@ class MyLightningModule(PLModule):
             _recursive_=False,
         )
 
-        self.supervisor = hydra.utils.instantiate(
-            self.hparams.supervisor,
-            _recursive_=False,
-        )
-
         self.generator = hydra.utils.instantiate(
             self.hparams.generator,
             noise_dim=self.hparams.noise_dim,
@@ -70,12 +65,6 @@ class MyLightningModule(PLModule):
         # x_reconstructed.shape = [batch_size, n_features, sequence_length]
         return x_reconstructed
 
-    def forward_supervisor(self, h):
-        # h.shape = [batch_size, sequence_length, hidden_size]
-        s = self.supervisor(h)
-        # s.shape = [batch_size, sequence_length, hidden_size]
-        return s
-
     def forward_autoencoder(self, x):
         # x.shape = [batch_size, n_features, sequence_length]
         x_tilde = self.forward_recoverer(self.forward_embedder(x))
@@ -98,15 +87,15 @@ class MyLightningModule(PLModule):
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int):
         # batch.keys() = ['x']
 
-        opt_embedder, opt_recoverer, opt_supervisor, opt_generator, opt_discriminator = self.optimizers()
+        opt_embedder, opt_recoverer, opt_generator, opt_discriminator = self.optimizers()
 
         x = batch["x"]
         # x.shape = [batch_size, n_features, sequence_length]
 
         batch_size = x.shape[0]
 
-        # Training with reconstruction loss only
-        if self.current_epoch < self.hparams.n_epochs_training_only_reconstruction:
+        # Training auto-encoder only
+        if self.current_epoch < self.hparams.n_epochs_training_only_autoencoder:
             opt_embedder.zero_grad()
             opt_recoverer.zero_grad()
 
@@ -121,57 +110,30 @@ class MyLightningModule(PLModule):
             opt_embedder.step()
             opt_recoverer.step()
 
-        # Training with supervised loss only
-        elif self.current_epoch < self.hparams.n_epochs_training_only_supervised:
-            opt_supervisor.zero_grad()
-
-            h = self.forward_embedder(x)
-            # h.shape = [batch_size, sequence_length, hidden_size]
-            h_hat_s = self.forward_supervisor(h)
-            # h_hat_s.shape = [batch_size, sequence_length, hidden_size]
-
-            loss_supervised = self.__compute_loss_supervised(h, h_hat_s)
-
-            self.log_dict({"loss/supervisor": loss_supervised}, on_step=True, on_epoch=True, prog_bar=True)
-            self.manual_backward(loss_supervised)
-
-            opt_supervisor.step()
-
         # Joint training
         else:
             for _ in range(2):
                 opt_generator.zero_grad()
-                opt_supervisor.zero_grad()
                 opt_embedder.zero_grad()
                 opt_recoverer.zero_grad()
 
                 h = self.forward_embedder(x)
                 # h.shape = [batch_size, sequence_length, hidden_size]
 
-                h_hat_s = self.forward_supervisor(h)
-                # h_hat_s.shape = [batch_size, sequence_length, hidden_size]
-
-                e_hat = self.forward_generator(batch_size)
+                h_hat = self.forward_generator(batch_size)
                 # e_hat.shape = [batch_size, sequence_length, hidden_size]
-
-                h_hat = self.forward_supervisor(e_hat)
-                # h_hat.shape = [batch_size, sequence_length, hidden_size]
 
                 x_hat = self.forward_recoverer(h_hat)
                 # x_hat.shape = [batch_size, n_features, sequence_length]
 
-                y_fake = self.forward_discriminator(h_hat)
+                y_real = self.forward_discriminator(h).detach()
                 # y_fake.shape = [batch_size, sequence_length, 1]
 
-                y_fake_e = self.forward_discriminator(e_hat)
+                y_fake = self.forward_discriminator(h_hat).detach()
                 # y_fake_e.shape = [batch_size, sequence_length, 1]
 
-                G_loss_U = self.__compute_loss_unsupervised(torch.ones_like(y_fake), y_fake)
-                G_loss_U_e = self.__compute_loss_unsupervised(torch.ones_like(y_fake_e), y_fake_e)
-                loss_unsupervised = G_loss_U + G_loss_U_e
-
-                loss_supervised = self.__compute_loss_supervised(h, h_hat_s)
-
+                loss_unsupervised = self.__compute_loss_unsupervised(y_real, y_fake)
+                loss_supervised = self.__compute_loss_supervised(h, h_hat)
                 loss_stdmean = self.__compute_loss_stdmean(x, x_hat)
 
                 loss_generator = loss_unsupervised + 100 * torch.sqrt(loss_supervised) + 100 * loss_stdmean
@@ -183,18 +145,14 @@ class MyLightningModule(PLModule):
                 self.manual_backward(loss_generator, retain_graph=True)
 
                 opt_generator.step()
-                opt_supervisor.step()
 
                 x_tilde = self.forward_recoverer(h)
                 # x_tilde.shape = [batch_size, n_features, sequence_length]
 
-                G_loss_S = self.__compute_loss_supervised(h, h_hat_s)
-                E_loss_T0 = self.__compute_loss_recontruction(x, x_tilde)
-                E_loss0 = 10 * torch.sqrt(E_loss_T0)
-                E_loss = E_loss0 + 0.1 * G_loss_S
-
-                self.log_dict({"loss/joint-autoencoder": E_loss}, on_step=True, on_epoch=True, prog_bar=True)
-                self.manual_backward(E_loss, retain_graph=False)
+                loss_reconstruction = 10 * torch.sqrt(self.__compute_loss_recontruction(x, x_tilde))
+                loss = loss_reconstruction + loss_supervised
+                self.log_dict({"loss/joint-autoencoder": loss}, on_step=True, on_epoch=True, prog_bar=True)
+                self.manual_backward(loss, retain_graph=False)
 
                 opt_embedder.step()
                 opt_recoverer.step()
@@ -204,11 +162,8 @@ class MyLightningModule(PLModule):
             h = self.forward_embedder(x).detach()
             # h.shape = [batch_size, sequence_length, hidden_size]
 
-            e_hat = self.forward_generator(batch_size).detach()
+            h_hat = self.forward_generator(batch_size).detach()
             # e_hat.shape = [batch_size, sequence_length, hidden_size]
-
-            h_hat = self.forward_supervisor(e_hat).detach()
-            # h_hat.shape = [batch_size, sequence_length, hidden_size]
 
             y_real = self.forward_discriminator(h)
             # y_real.shape = [batch_size, sequence_length, 1]
@@ -216,22 +171,19 @@ class MyLightningModule(PLModule):
             y_fake = self.forward_discriminator(h_hat)
             # y_fake.shape = [batch_size, sequence_length, 1]
 
-            y_fake_e = self.forward_discriminator(e_hat)
-            # y_fake_e.shape = [batch_size, sequence_length, 1]
+            loss_discriminator = self.__compute_loss_unsupervised(
+                torch.concatenate((torch.ones_like(y_real), torch.zeros_like(y_fake)), dim=2),
+                torch.concatenate((y_real, y_fake), dim=2),
+            )
 
-            D_loss_real = self.__compute_loss_unsupervised(torch.ones_like(y_real), y_real)
-            D_loss_fake = self.__compute_loss_unsupervised(torch.zeros_like(y_fake), y_fake)
-            D_loss_fake_e = self.__compute_loss_unsupervised(torch.zeros_like(y_fake_e), y_fake_e)
-            D_loss = D_loss_real + D_loss_fake + D_loss_fake_e
+            self.log_dict({"loss/discriminator": loss_discriminator}, on_step=True, on_epoch=True, prog_bar=True)
 
-            self.log_dict({"loss/discriminator": D_loss}, on_step=True, on_epoch=True, prog_bar=True)
-
-            if D_loss > self.hparams.discriminator_threshold:
-                self.manual_backward(D_loss)
+            if loss_discriminator > self.hparams.discriminator_threshold:
+                self.manual_backward(loss_discriminator)
                 opt_discriminator.step()
 
     def validation_n_test_epoch_end(self, samples: Sequence[Dict[str, torch.Tensor]]) -> None:
-        if self.current_epoch >= self.hparams.n_epochs_training_only_supervised:
+        if self.current_epoch >= self.hparams.n_epochs_training_only_autoencoder:
 
             # Aggregation of the batches
             dict_with_reals: Dict[str, torch.Tensor] = self.aggregate_from_batches(samples)
@@ -247,8 +199,7 @@ class MyLightningModule(PLModule):
 
         x_hat = list()
         for i in range(prediction_iterations):
-            e_hat = self.forward_generator(batch_size=1)
-            h_hat = self.forward_supervisor(e_hat)
+            h_hat = self.forward_generator(batch_size=1)
             x_hat_ = self.forward_recoverer(h_hat)
             # x_hat_.shape = [1, n_features, sequence_length]
             x_hat_ = x_hat_.squeeze().detach().cpu()
@@ -266,11 +217,11 @@ class MyLightningModule(PLModule):
     def __compute_loss_recontruction(self, x, x_tilde):
         return self.mse(x, x_tilde)
 
-    def __compute_loss_supervised(self, h, h_hat_s):
-        return self.mse(h[:, 1:, :], h_hat_s[:, :-1, :])
+    def __compute_loss_supervised(self, h, h_hat):
+        return self.mse(h[:, 1:, :], h_hat[:, :-1, :])
 
-    def __compute_loss_unsupervised(self, zeros_or_ones, y):
-        return self.bcewl(zeros_or_ones, y)
+    def __compute_loss_unsupervised(self, real, pred):
+        return self.bcewl(real, pred)
 
     def __compute_loss_stdmean(self, x, x_hat):
         G_loss_V1 = torch.mean(
@@ -313,12 +264,6 @@ class MyLightningModule(PLModule):
             _convert_="partial",
         )
 
-        opt_supervisor = hydra.utils.instantiate(
-            self.hparams.optimizer_supervisor,
-            params=self.recoverer.parameters(),
-            _convert_="partial",
-        )
-
         opt_generator = hydra.utils.instantiate(
             self.hparams.optimizer_generator,
             params=self.generator.parameters(),
@@ -331,7 +276,7 @@ class MyLightningModule(PLModule):
             _convert_="partial",
         )
 
-        return [opt_embedder, opt_recoverer, opt_supervisor, opt_generator, opt_discriminator]
+        return [opt_embedder, opt_recoverer, opt_generator, opt_discriminator]
 
 
 @hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default", version_base=None)
