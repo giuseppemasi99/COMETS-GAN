@@ -102,7 +102,7 @@ class MyLightningModule(PLModule):
             x_tilde = self.forward_autoencoder(x)
             # x_tilde.shape = [batch_size, n_features, sequence_length]
 
-            loss_reconstruction = 10 * torch.sqrt(self.__compute_loss_recontruction(x, x_tilde))
+            loss_reconstruction = 10 * torch.sqrt(self.mse(x, x_tilde))
 
             self.log_dict({"loss/autoencoder": loss_reconstruction}, on_step=True, on_epoch=True, prog_bar=True)
             self.manual_backward(loss_reconstruction)
@@ -126,14 +126,11 @@ class MyLightningModule(PLModule):
                 x_hat = self.forward_recoverer(h_hat)
                 # x_hat.shape = [batch_size, n_features, sequence_length]
 
-                y_real = self.forward_discriminator(h)
-                # y_fake.shape = [batch_size, sequence_length, 1]
-
                 y_fake = self.forward_discriminator(h_hat)
                 # y_fake_e.shape = [batch_size, sequence_length, 1]
 
-                loss_unsupervised = self.__compute_loss_unsupervised(y_real, y_fake)
-                loss_supervised = self.__compute_loss_supervised(h, h_hat)
+                loss_unsupervised = self.bcewl(y_fake, torch.ones_like(y_fake))
+                loss_supervised = self.mse(h, h_hat)
                 loss_stdmean = self.__compute_loss_stdmean(x, x_hat)
 
                 loss_generator = loss_unsupervised + 100 * torch.sqrt(loss_supervised) + 100 * loss_stdmean
@@ -149,7 +146,7 @@ class MyLightningModule(PLModule):
                 x_tilde = self.forward_recoverer(h)
                 # x_tilde.shape = [batch_size, n_features, sequence_length]
 
-                loss_reconstruction = 10 * torch.sqrt(self.__compute_loss_recontruction(x, x_tilde))
+                loss_reconstruction = 10 * torch.sqrt(self.mse(x, x_tilde))
 
                 self.log_dict(
                     {"loss/joint-autoencoder": loss_reconstruction}, on_step=True, on_epoch=True, prog_bar=True
@@ -161,10 +158,10 @@ class MyLightningModule(PLModule):
 
             opt_discriminator.zero_grad()
 
-            h = self.forward_embedder(x).detach()
+            h = self.forward_embedder(x)
             # h.shape = [batch_size, sequence_length, hidden_size]
 
-            h_hat = self.forward_generator(batch_size).detach()
+            h_hat = self.forward_generator(batch_size)
             # e_hat.shape = [batch_size, sequence_length, hidden_size]
 
             y_real = self.forward_discriminator(h)
@@ -173,9 +170,9 @@ class MyLightningModule(PLModule):
             y_fake = self.forward_discriminator(h_hat)
             # y_fake.shape = [batch_size, sequence_length, 1]
 
-            loss_discriminator = self.__compute_loss_unsupervised(
-                torch.concatenate((torch.ones_like(y_real), torch.zeros_like(y_fake)), dim=2),
+            loss_discriminator = self.bcewl(
                 torch.concatenate((y_real, y_fake), dim=2),
+                torch.concatenate((torch.ones_like(y_real), torch.zeros_like(y_fake)), dim=2),
             )
 
             self.log_dict({"loss/discriminator": loss_discriminator}, on_step=True, on_epoch=True, prog_bar=True)
@@ -215,15 +212,6 @@ class MyLightningModule(PLModule):
         # x_hat.shape = [n_features, prediction_length]
 
         return self.unpack(x_hat)
-
-    def __compute_loss_recontruction(self, x, x_tilde):
-        return self.mse(x, x_tilde)
-
-    def __compute_loss_supervised(self, h, h_hat):
-        return self.mse(h[:, 1:, :], h_hat[:, :-1, :])
-
-    def __compute_loss_unsupervised(self, real, pred):
-        return self.bcewl(real, pred)
 
     def __compute_loss_stdmean(self, x, x_hat):
         G_loss_V1 = torch.mean(
