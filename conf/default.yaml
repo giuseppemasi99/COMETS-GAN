@@ -8,7 +8,7 @@ core:
 defaults:
   - hydra: default
   - train: default
-  - model: timegan
+  - model: conv
   - data: multistock
   - _self_ # as last argument to allow the override of parameters via this main config
 #    Decomment this parameter to get parallel job running

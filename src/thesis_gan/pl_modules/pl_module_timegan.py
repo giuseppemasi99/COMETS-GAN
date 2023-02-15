@@ -190,8 +190,11 @@ class MyLightningModule(PLModule):
             # Aggregation of the batches
             dict_with_reals: Dict[str, torch.Tensor] = self.aggregate_from_batches(samples)
 
+            x = dict_with_reals["x"]
+            # x.shape = [n_features, sequence_length]
+            sequence_length = x.shape[1]
+
             # Autoregressive prediction
-            sequence_length = dict_with_reals["x"].shape[1]
             dict_with_preds = self.predict_autoregressively(prediction_length=sequence_length)
 
             self.continue_validation_n_test_epoch_end(dict_with_reals, dict_with_preds)

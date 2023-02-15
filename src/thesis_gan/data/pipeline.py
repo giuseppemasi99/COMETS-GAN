@@ -1,4 +1,4 @@
-from typing import List, Optional, Union
+from typing import List, Union
 
 import numpy as np
 import pandas as pd
@@ -22,7 +22,7 @@ class Pipeline:
     def preprocess(self, df: pd.DataFrame, targets: List[str]) -> np.ndarray:
         pass
 
-    def inverse_transform(self, x: np.ndarray, x_last: Optional[np.ndarray]) -> np.ndarray:
+    def inverse_transform(self, x: np.ndarray) -> np.ndarray:
         pass
 
     def __repr__(self) -> str:
@@ -40,17 +40,17 @@ class ScalerPipeline(Pipeline):
         df_targets = df[targets].to_numpy()
 
         if self.log:
-            df_targets = np.log(1 + df_targets)
+            df_targets = np.log1p(df_targets)
 
         if not is_fitted(self.scaler):
             self.scaler.fit(df_targets)
 
         return self.scaler.transform(df_targets)
 
-    def inverse_transform(self, x: np.ndarray, x_last: Optional[np.ndarray] = None) -> np.ndarray:
+    def inverse_transform(self, x: np.ndarray) -> np.ndarray:
         inv = self.scaler.inverse_transform(x)
         if self.log:
-            inv = np.exp(inv) - 1
+            inv = np.expm1(inv)
         if self.round:
             inv = np.rint(inv)
         return inv
@@ -60,43 +60,47 @@ class ReturnPipeline(Pipeline):
     def __init__(self, scaler: Union[MinMaxScaler, StandardScaler]) -> None:
         super(ReturnPipeline, self).__init__()
         self.scaler = scaler
+        self.first_prices = None
 
     def preprocess(self, df: pd.DataFrame, targets: List[str]) -> np.ndarray:
-        df_targets = df[targets]
-        returns = df_targets.pct_change().fillna(0).to_numpy()
+        prices = df[targets]
+        self.first_prices = prices.iloc[0].values
+
+        returns = prices.pct_change()[1:].to_numpy()
 
         if not is_fitted(self.scaler):
             self.scaler.fit(returns)
 
         return self.scaler.transform(returns)
 
-    def inverse_transform(self, x: np.ndarray, x_last: Optional[np.ndarray] = None) -> np.ndarray:
+    def inverse_transform(self, x: np.ndarray) -> np.ndarray:
         returns = self.scaler.inverse_transform(x)
-        inversed = np.cumprod((1 + returns), axis=0)
-        if x_last is not None:
-            return x_last * inversed
-        else:
-            return inversed
+        prices = np.cumprod((1 + returns), axis=0) * self.first_prices
+        prices = np.vstack([self.first_prices, prices])
+        return prices
 
 
 class LogReturnPipeline(Pipeline):
     def __init__(self, scaler: Union[MinMaxScaler, StandardScaler]) -> None:
         super(LogReturnPipeline, self).__init__()
         self.scaler = scaler
+        self.first_prices = None
 
     def preprocess(self, df: pd.DataFrame, targets: List[str]) -> np.ndarray:
-        df_targets = df[targets]
-        log_returns = np.log(df_targets / df_targets.shift(1)).fillna(0).to_numpy()
+        prices = df[targets]
+        self.first_prices = prices.iloc[0].values
+
+        returns = prices.pct_change()[1:].to_numpy()
+        log_returns = np.log1p(returns)
 
         if not is_fitted(self.scaler):
             self.scaler.fit(log_returns)
 
         return self.scaler.transform(log_returns)
 
-    def inverse_transform(self, x: np.ndarray, x_last: Optional[np.ndarray] = None) -> np.ndarray:
+    def inverse_transform(self, x: np.ndarray) -> np.ndarray:
         log_returns = self.scaler.inverse_transform(x)
-        inversed = np.cumprod(np.exp(log_returns), axis=0)
-        if x_last is not None:
-            return x_last * inversed
-        else:
-            return inversed
+        returns = np.expm1(log_returns)
+        prices = np.cumprod(1 + returns, axis=0) * self.first_prices
+        prices = np.vstack([self.first_prices, prices])
+        return prices

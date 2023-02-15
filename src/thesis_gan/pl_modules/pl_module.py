@@ -220,8 +220,6 @@ class PLModule(pl.LightningModule):
     def unpack(
         self,
         x_hat: torch.Tensor,
-        last_prices: Optional[np.ndarray] = None,
-        last_volumes: Optional[np.ndarray] = None,
     ) -> Dict[str, torch.Tensor]:
 
         return_dict = dict(x_hat=x_hat)
@@ -231,7 +229,7 @@ class PLModule(pl.LightningModule):
         # If there are prices
         if self.hparams.target_feature_price is not None:
             pred_x_price = x_hat[: self.hparams.n_stocks, :]
-            pred_prices = self.pipeline_price.inverse_transform(pred_x_price.numpy().T, last_prices).T
+            pred_prices = self.pipeline_price.inverse_transform(pred_x_price.numpy().T).T
             return_dict["pred_prices"] = torch.Tensor(pred_prices)
 
         # If there are both prices and volumes
@@ -244,7 +242,7 @@ class PLModule(pl.LightningModule):
 
         # If there are volumes
         if self.hparams.target_feature_volume is not None:
-            pred_volumes = self.pipeline_volume.inverse_transform(pred_x_volume.numpy().T, last_volumes).T
+            pred_volumes = self.pipeline_volume.inverse_transform(pred_x_volume.numpy().T).T
             return_dict["pred_volumes"] = torch.Tensor(pred_volumes)
 
         return return_dict

@@ -3,7 +3,6 @@ import math
 from typing import Dict, Optional, Sequence, Tuple
 
 import hydra
-import numpy as np
 import omegaconf
 import pytorch_lightning as pl
 import torch
@@ -76,8 +75,6 @@ class MyLightningModule(PLModule):
             return d_loss
 
     def validation_n_test_epoch_end(self, samples: Sequence[Dict[str, torch.Tensor]]) -> None:
-        # TODO: Controllare last_prices & last_volumes
-
         # Aggregation of the batches
         dict_with_reals: Dict[str, torch.Tensor] = self.aggregate_from_batches(samples)
 
@@ -85,20 +82,9 @@ class MyLightningModule(PLModule):
         # x.shape = [n_features, sequence_length]
         sequence_length = x.shape[1]
 
-        prices, volumes, last_prices, last_volumes = None, None, None, None
-        if self.hparams.target_feature_price is not None:
-            prices = dict_with_reals["prices"]
-            last_prices = prices[: self.hparams.n_stocks, self.hparams.encoder_length - 1].cpu()
-        if self.hparams.target_feature_volume is not None:
-            volumes = dict_with_reals["volumes"]
-            last_volumes = volumes[: self.hparams.n_stocks, self.hparams.encoder_length - 1].cpu()
-
-        print(x.shape)
-        print(prices.shape)
-        print(volumes.shape)
         # Autoregressive prediction
         dict_with_preds: Dict[str, torch.Tensor] = self.predict_autoregressively(
-            x, last_prices, last_volumes, prediction_length=sequence_length - self.hparams.encoder_length
+            x, prediction_length=sequence_length - self.hparams.encoder_length
         )
 
         self.continue_validation_n_test_epoch_end(dict_with_reals, dict_with_preds)
@@ -106,8 +92,6 @@ class MyLightningModule(PLModule):
     def predict_autoregressively(
         self,
         x: torch.Tensor,
-        last_prices: Optional[np.ndarray] = None,
-        last_volumes: Optional[np.ndarray] = None,
         prediction_length: Optional[int] = None,
     ) -> Dict[str, torch.Tensor]:
 
@@ -127,7 +111,7 @@ class MyLightningModule(PLModule):
         x_hat = x_hat.squeeze().detach().cpu()
         # x_hat.shape = [n_features, sequence_length]
 
-        return self.unpack(x_hat, last_prices, last_volumes)
+        return self.unpack(x_hat)
 
     def configure_optimizers(self) -> Tuple[Dict[str, Optimizer], Dict[str, Optimizer]]:
         """Choose what optimizers and learning-rate schedulers to use in your optimization.
