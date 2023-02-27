@@ -102,5 +102,5 @@ class LogReturnPipeline(Pipeline):
         log_returns = self.scaler.inverse_transform(x)
         returns = np.expm1(log_returns)
         prices = np.cumprod(1 + returns, axis=0) * self.first_prices
-        prices = np.vstack([self.first_prices, prices])
+        # prices = np.vstack([self.first_prices, prices])
         return prices
