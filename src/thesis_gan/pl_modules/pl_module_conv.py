@@ -6,7 +6,6 @@ import hydra
 import omegaconf
 import pytorch_lightning as pl
 import torch
-import torch.nn as nn
 from torch.optim import Optimizer
 
 from nn_core.common import PROJECT_ROOT
@@ -40,7 +39,7 @@ class MyLightningModule(PLModule):
             _recursive_=False,
         )
 
-        self.discriminator_loss_criterion = nn.MarginRankingLoss()
+        # self.discriminator_loss_criterion = nn.MarginRankingLoss()
 
     def forward(self, x: torch.Tensor, noise: torch.Tensor) -> torch.Tensor:
         # x.shape = [batch_size, n_features, encoder_length]
@@ -73,8 +72,8 @@ class MyLightningModule(PLModule):
             y_pred = self(x, noise)
             real_validity = self.discriminator(x, y_real)
             fake_validity = self.discriminator(x, y_pred)
-            # d_loss = -torch.mean(real_validity) + torch.mean(fake_validity)
-            d_loss = self.discriminator_loss_criterion(real_validity, fake_validity, torch.ones_like(real_validity))
+            d_loss = -torch.mean(real_validity) + torch.mean(fake_validity)
+            # d_loss = self.discriminator_loss_criterion(real_validity, fake_validity, torch.ones_like(real_validity))
             self.log_dict({"loss/discriminator": d_loss}, on_step=True, on_epoch=True, prog_bar=True)
             return d_loss
 
