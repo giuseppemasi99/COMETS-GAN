@@ -75,8 +75,8 @@ class ReturnPipeline(Pipeline):
 
     def inverse_transform(self, x: np.ndarray) -> np.ndarray:
         returns = self.scaler.inverse_transform(x)
-        prices = np.cumprod((1 + returns), axis=0) * self.first_prices
-        prices = np.vstack([self.first_prices, prices])
+        prices = np.cumprod(1 + returns, axis=0) * self.first_prices
+        # prices = np.vstack([self.first_prices, prices])
         return prices
 
 
