@@ -20,6 +20,7 @@ import thesis_gan  # noqa
 from thesis_gan.common.utils import complete_configuration
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 pylogger = logging.getLogger(__name__)
 

@@ -111,7 +111,7 @@ class PLModule(pl.LightningModule):
         # self.logger.experiment.log({title: wandb.Image(fig)})
         path = self.logger.experiment.dir + "/media/images/returns_distribution"
         self.__create_dirs_if_not_exist(path)
-        plt.savefig(path + "/" + title)
+        plt.savefig(path + "/" + title + ".pdf")
         plt.close(fig)
 
     def log_plot_sf_aggregational_gaussianity(
@@ -129,7 +129,7 @@ class PLModule(pl.LightningModule):
             # self.logger.experiment.log({title: wandb.Image(fig)})
             path = self.logger.experiment.dir + "/media/images/aggregational_gaussianity"
             self.__create_dirs_if_not_exist(path)
-            plt.savefig(path + "/" + title)
+            plt.savefig(path + "/" + title + ".pdf")
             plt.close(fig)
 
     def log_plot_sf_absence_autocorrelation(
@@ -147,7 +147,7 @@ class PLModule(pl.LightningModule):
             # self.logger.experiment.log({title: wandb.Image(fig)})
             path = self.logger.experiment.dir + "/media/images/absence_autocorrelation"
             self.__create_dirs_if_not_exist(path)
-            plt.savefig(path + "/" + title)
+            plt.savefig(path + "/" + title + ".pdf")
             plt.close(fig)
 
     def log_plot_sf_volatility_clustering(
@@ -164,7 +164,7 @@ class PLModule(pl.LightningModule):
         # self.logger.experiment.log({title: wandb.Image(fig)})
         path = self.logger.experiment.dir + "/media/images/volatility_clustering"
         self.__create_dirs_if_not_exist(path)
-        plt.savefig(path + "/" + title)
+        plt.savefig(path + "/" + title + ".pdf")
         plt.close(fig)
 
     def log_plot_sf_volume_volatility_correlation(self, x_price, x_hat_price, x_volume, x_hat_volume) -> None:
@@ -179,7 +179,7 @@ class PLModule(pl.LightningModule):
         # self.logger.experiment.log({title: wandb.Image(fig)})
         path = self.logger.experiment.dir + "/media/images/volume_volatility_correlation"
         self.__create_dirs_if_not_exist(path)
-        plt.savefig(path + "/" + title)
+        plt.savefig(path + "/" + title + ".pdf")
         plt.close(fig)
 
     def log_metrics_volume(self, ts_real: np.ndarray, ts_pred: np.ndarray) -> None:
