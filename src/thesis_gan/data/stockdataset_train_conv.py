@@ -4,11 +4,13 @@ from typing import Dict, List
 import hydra
 import omegaconf
 import torch
+from omegaconf import OmegaConf
 from torch.utils.data import Dataset
 
 from nn_core.common import PROJECT_ROOT
 from nn_core.nn_types import Split
 
+from thesis_gan.common.utils import complete_configuration
 from thesis_gan.data.dataset import StockDataset
 from thesis_gan.data.pipeline import Pipeline
 
@@ -68,10 +70,18 @@ def main(cfg: omegaconf.DictConfig) -> None:
     Args:
         cfg: the hydra configuration
     """
-    pipeline_price = hydra.utils.instantiate(cfg.data.data_pipeline_price)
-    pipeline_volume = hydra.utils.instantiate(cfg.data.data_pipeline_volume)
+
+    def resolve_tuple(*args):
+        return tuple(args)
+
+    OmegaConf.register_new_resolver("as_tuple", resolve_tuple)
+
+    cfg = complete_configuration(cfg)
+
+    pipeline_price: Pipeline = hydra.utils.instantiate(cfg.data.module.data_pipeline_price)
+    pipeline_volume: Pipeline = hydra.utils.instantiate(cfg.data.module.data_pipeline_volume)
     _: Dataset = hydra.utils.instantiate(
-        cfg.data.datasets.train,
+        cfg.data.module.datasets.train,
         split="train",
         data_pipeline_price=pipeline_price,
         data_pipeline_volume=pipeline_volume,
