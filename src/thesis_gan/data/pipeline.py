@@ -77,7 +77,6 @@ class ReturnPipeline(Pipeline):
     def inverse_transform(self, x: np.ndarray) -> np.ndarray:
         returns = self.scaler.inverse_transform(x)
         prices = np.cumprod(1 + returns, axis=0) * self.first_prices
-        # prices = np.vstack([self.first_prices, prices])
         return prices
 
 
@@ -105,13 +104,12 @@ class LogReturnPipeline(Pipeline):
         log_returns = self.scaler.inverse_transform(x)
         try:
             returns = np.expm1(log_returns)
+            prices = np.cumprod(1 + returns, axis=0) * self.first_prices
         except RuntimeWarning:
             print("RuntimeWarning: np.expm1(log_returns)")
             print("log_returns:", log_returns)
-        prices = np.cumprod(1 + returns, axis=0) * self.first_prices
-        # prices = np.vstack([self.first_prices, prices])
-
         prices = np.nan_to_num(prices)
+
         warnings.resetwarnings()
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         return prices
