@@ -1,3 +1,4 @@
+import warnings
 from typing import List, Union
 
 import numpy as np
@@ -99,8 +100,18 @@ class LogReturnPipeline(Pipeline):
         return self.scaler.transform(log_returns)
 
     def inverse_transform(self, x: np.ndarray) -> np.ndarray:
+        warnings.filterwarnings("error")
+
         log_returns = self.scaler.inverse_transform(x)
-        returns = np.expm1(log_returns)
+        try:
+            returns = np.expm1(log_returns)
+        except RuntimeWarning:
+            print("RuntimeWarning: np.expm1(log_returns)")
+            print("log_returns:", log_returns)
         prices = np.cumprod(1 + returns, axis=0) * self.first_prices
         # prices = np.vstack([self.first_prices, prices])
+
+        prices = np.nan_to_num(prices)
+        warnings.resetwarnings()
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
         return prices

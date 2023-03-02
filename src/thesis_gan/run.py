@@ -1,4 +1,5 @@
 import logging
+import warnings
 from typing import Dict, List
 
 import dotenv
@@ -17,6 +18,8 @@ from nn_core.serialization import NNCheckpointIO
 # Force the execution of __init__.py if this file is executed directly.
 import thesis_gan  # noqa
 from thesis_gan.common.utils import complete_configuration
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 pylogger = logging.getLogger(__name__)
 
