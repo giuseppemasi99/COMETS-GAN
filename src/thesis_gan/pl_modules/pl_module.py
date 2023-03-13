@@ -95,6 +95,9 @@ class PLModule(pl.LightningModule):
             )
         title = f"{price_o_volume} - Epoch {self.current_epoch}"
         self.logger.experiment.log({title: wandb.Image(fig)})
+        path = self.logger.experiment.dir + "/media/images/timeseries"
+        self.__create_dirs_if_not_exist(path)
+        plt.savefig(path + "/" + title + ".pdf")
         plt.close(fig)
 
     def log_plot_sf_returns_distribution(
