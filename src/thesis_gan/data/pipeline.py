@@ -103,10 +103,9 @@ class LogReturnPipeline(Pipeline):
     def inverse_transform(self, x: np.ndarray) -> np.ndarray:
         log_returns = self.scaler.inverse_transform(x)
         returns = np.expm1(log_returns)
-        returns = np.nan_to_num(returns)
         prices = np.cumprod(1 + returns, axis=0)
-        prices = np.nan_to_num(prices)
         prices = prices * self.first_prices
-        prices = np.nan_to_num(prices)
+        # prices = np.nan_to_num(prices)
+        prices[np.isinf(prices)] = 1e19
         prices = np.vstack([self.first_prices, prices])
         return prices

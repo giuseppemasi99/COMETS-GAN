@@ -8,6 +8,7 @@ module:
   _target_: thesis_gan.pl_modules.pl_module_timegan.MyLightningModule
 
   save_reals: True
+  do_plot_stylised_facts: True
 
   dataset_type: ${data.dataset_type}
   model_type: ${model.model_type}

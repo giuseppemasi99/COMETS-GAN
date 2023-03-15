@@ -2,7 +2,7 @@ dataset_type: DowJones
 stock_names: [AAPL, AMGN, AXP, BA, CAT, CRM, CSCO, CVX, DIS, GS, HD, HON, IBM, INTC, JNJ, JPM, KO, MCD, MMM, MRK, MSFT, NKE, PG, TRV, UNH, V, VZ, WBA, WMT]
 
 target_feature_price: mid_price
-target_feature_volume: volume
+target_feature_volume: #volume
 
 encoder_length: 390
 decoder_length: 150

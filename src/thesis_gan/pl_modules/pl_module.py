@@ -294,7 +294,7 @@ class PLModule(pl.LightningModule):
             self.log_plot_timeseries(prices, pred_prices, "Prices")
 
             # Plots stylised facts
-            if self.hparams.dataset_type == "multistock":
+            if self.hparams.dataset_type == "multistock" and self.hparams.do_plot_stylised_facts:
                 self.log_plot_sf_returns_distribution(prices, pred_prices)
                 self.log_plot_sf_aggregational_gaussianity(prices, pred_prices)
                 self.log_plot_sf_absence_autocorrelation(prices, pred_prices)

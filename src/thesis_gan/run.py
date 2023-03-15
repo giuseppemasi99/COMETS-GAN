@@ -1,5 +1,4 @@
 import logging
-import warnings
 from typing import Dict, List
 
 import dotenv
@@ -19,8 +18,8 @@ from nn_core.serialization import NNCheckpointIO
 import thesis_gan  # noqa
 from thesis_gan.common.utils import complete_configuration
 
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-warnings.filterwarnings("ignore", category=RuntimeWarning)
+# warnings.filterwarnings("ignore", category=DeprecationWarning)
+# warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 pylogger = logging.getLogger(__name__)
 
