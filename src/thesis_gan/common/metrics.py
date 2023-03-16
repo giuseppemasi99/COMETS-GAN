@@ -137,7 +137,7 @@ def get_plot_timeseries_conv(
             )
             axes[i, j].plot(
                 continuation_indexes,
-                pred[linear_index],
+                pred[linear_index, encoder_length:],
                 color="C2",
             )
 

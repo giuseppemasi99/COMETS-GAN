@@ -213,6 +213,7 @@ class PLModule(pl.LightningModule):
         dict_with_reals = samples[0]
 
         dict_with_reals["x"] = dict_with_reals["x"].squeeze().detach()
+
         if self.hparams.target_feature_price is not None:
             dict_with_reals["prices"] = dict_with_reals["prices"].squeeze().detach()
         if self.hparams.target_feature_volume is not None:
