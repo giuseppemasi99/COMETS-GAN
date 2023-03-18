@@ -325,7 +325,7 @@ class PLModule(pl.LightningModule):
             )
 
             # Plot stylised fact
-            if self.hparams.dataset_type == "multistock":
+            if self.hparams.dataset_type == "multistock" and self.hparams.do_plot_stylised_facts:
                 self.log_plot_sf_volume_volatility_correlation(x_price, x_hat_price, x_volume, x_hat_volume)
 
     @staticmethod

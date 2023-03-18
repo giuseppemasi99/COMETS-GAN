@@ -52,7 +52,6 @@ class CNNDiscriminator(nn.Module):
             self.linear_corr = spectral_norm(nn.Linear(corr_features, 1), n_power_iterations=10)
 
     def forward(self, x: torch.Tensor, y_continuation: torch.Tensor) -> torch.Tensor:
-
         concatenated = torch.cat((x, y_continuation), dim=-1)
 
         o = self.convblock1(concatenated)
@@ -67,6 +66,7 @@ class CNNDiscriminator(nn.Module):
         if self.n_features > 1 and self.compute_corr:
             correlations = corr(y_continuation)
             corr_score = self.linear_corr(correlations)
+
             if self.alpha is not None:
                 output = self.alpha * output + (1 - self.alpha) * corr_score
             else:

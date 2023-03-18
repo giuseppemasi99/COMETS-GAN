@@ -62,6 +62,9 @@ class StockDatasetTrainConv(StockDataset):
 
         return return_dict
 
+    def __repr__(self) -> str:
+        return f"StockDatasetTrainConv({self.split=}, n_instances={len(self.data)})"
+
 
 @hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default", version_base=None)
 def main(cfg: omegaconf.DictConfig) -> None:

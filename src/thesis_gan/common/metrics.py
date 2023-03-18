@@ -114,8 +114,6 @@ def get_plot_timeseries_conv(
     for i in range(I):
         for j in range(J):
             linear_index = i * J + j
-            if linear_index == 29:
-                continue
 
             axes[i, j].set_title(f"{stock_names[linear_index]}", fontsize=20)
 
@@ -168,8 +166,6 @@ def get_plot_timeseries_timegan(
     for i in range(I):
         for j in range(J):
             linear_index = i * J + j
-            if linear_index == 29:
-                continue
 
             axes[i, j].set_title(f"{stock_names[linear_index]}", fontsize=20)
 

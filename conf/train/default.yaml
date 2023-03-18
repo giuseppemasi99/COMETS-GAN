@@ -6,6 +6,7 @@ checkpoint: #'storage/thesis-gan/svufltdd/checkpoints/epoch=168-step=47319.ckpt.
 # PyTorch Lightning Trainer https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html
 trainer:
   fast_dev_run: True # Enable this for debug purposes
+  detect_anomaly: True # Enable this for debug purposes
   gpus: 1
   precision: 32
   max_epochs: 300
