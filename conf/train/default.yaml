@@ -1,12 +1,13 @@
 # reproducibility
 seed_index: 42
 deterministic: False
-checkpoint: #'storage/thesis-gan/svufltdd/checkpoints/epoch=168-step=47319.ckpt.zip'
 
-# PyTorch Lightning Trainer https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html
+checkpoint: 'storage/thesis-gan/iksf94ne/checkpoints/epoch=260-step=73079.ckpt.zip'
+sampling_seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+
 trainer:
-  fast_dev_run: True # Enable this for debug purposes
-  detect_anomaly: True # Enable this for debug purposes
+  fast_dev_run: False # Enable this for debug purposes
+  detect_anomaly: False # Enable this for debug purposes
   gpus: 1
   precision: 32
   max_epochs: 300
@@ -50,7 +51,7 @@ logging:
     project: ${core.project_name}
     entity: null
     log_model: ${..upload.run_files}
-    mode: 'online'
+    mode: 'offline'
 
   wandb_watch:
     log: 'all'
