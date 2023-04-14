@@ -25,7 +25,7 @@ class StockDatasetInference(StockDataset):
         data_pipeline_volume: Pipeline,
         split: Split,
     ) -> None:
-        super(StockDatasetInference, self).__init__(
+        super().__init__(
             path,
             target_feature_price,
             target_feature_volume,
@@ -67,14 +67,13 @@ def main(cfg: omegaconf.DictConfig) -> None:
 
     OmegaConf.register_new_resolver("as_tuple", resolve_tuple)
 
-    data_pipeline_price = hydra.utils.instantiate(cfg.data.module.data_pipeline_price)
-    data_pipeline_volume = hydra.utils.instantiate(cfg.data.module.data_pipeline_volume)
-
+    pipeline_price = hydra.utils.instantiate(cfg.data.module.data_pipeline_price)
+    pipeline_volume = hydra.utils.instantiate(cfg.data.module.data_pipeline_volume)
     _: Dataset = hydra.utils.instantiate(
         cfg.data.module.datasets.val[0],
         split="val",
-        data_pipeline_price=data_pipeline_price,
-        data_pipeline_volume=data_pipeline_volume,
+        data_pipeline_price=pipeline_price,
+        data_pipeline_volume=pipeline_volume,
         _recursive_=False,
     )
 
