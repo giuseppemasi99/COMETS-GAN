@@ -114,6 +114,9 @@ class MyLightningModule(PLModule):
         x_hat = x_hat.squeeze().detach().cpu()
         # x_hat.shape = [n_features, sequence_length]
 
+        x_hat = x_hat[:, : self.hparams.encoder_length + prediction_length]
+        # x_hat.shape = [n_features, prediction_length]
+
         return self.unpack(x_hat)
 
     def configure_optimizers(self) -> Tuple[Dict[str, Optimizer], Dict[str, Optimizer]]:

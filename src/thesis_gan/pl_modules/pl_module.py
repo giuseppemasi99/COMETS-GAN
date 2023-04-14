@@ -95,6 +95,9 @@ class PLModule(pl.LightningModule):
             )
         title = f"{price_o_volume} - Epoch {self.current_epoch}"
         self.logger.experiment.log({title: wandb.Image(fig)})
+        path = self.logger.experiment.dir + "/media/images/timeseries"
+        self.__create_dirs_if_not_exist(path)
+        plt.savefig(path + "/" + title + ".pdf")
         plt.close(fig)
 
     def log_plot_sf_returns_distribution(
@@ -198,9 +201,13 @@ class PLModule(pl.LightningModule):
 
     def save_dict_in_pickle_file(self, d, file_name):
         if hasattr(self.logger, "run_dir"):
-            self.__create_dirs_if_not_exist(self.logger.run_dir)
+            s = self.logger.run_dir.split("/")
+            run_id = s[-1]
+            s = s[:-1]
+            directory_diversity = "/".join(s) + "/diversity_val/" + run_id
+            self.__create_dirs_if_not_exist(directory_diversity)
 
-            path_file = f"{self.logger.run_dir}/{file_name}"
+            path_file = f"{directory_diversity}/{file_name}"
             if not os.path.exists(path_file):
                 with open(path_file, "wb") as handle:
                     pickle.dump(d, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -210,6 +217,7 @@ class PLModule(pl.LightningModule):
         dict_with_reals = samples[0]
 
         dict_with_reals["x"] = dict_with_reals["x"].squeeze().detach()
+
         if self.hparams.target_feature_price is not None:
             dict_with_reals["prices"] = dict_with_reals["prices"].squeeze().detach()
         if self.hparams.target_feature_volume is not None:
@@ -266,8 +274,10 @@ class PLModule(pl.LightningModule):
         self.save_dict_in_pickle_file(
             dict_with_preds,
             file_name=f"preds_epoch={self.current_epoch}-"
+            f"seed={self.hparams.seed}-"
             f"target_price={self.hparams.target_feature_price}-"
-            f"target_volume={self.hparams.target_feature_volume}"
+            f"target_volume={self.hparams.target_feature_volume}-"
+            f"sampling_seed={np.random.get_state()[1][0]}"
             f".pickle",
         )
 
@@ -291,7 +301,7 @@ class PLModule(pl.LightningModule):
             self.log_plot_timeseries(prices, pred_prices, "Prices")
 
             # Plots stylised facts
-            if self.hparams.dataset_type == "multistock":
+            if self.hparams.dataset_type == "multistock" and self.hparams.do_plot_stylised_facts:
                 self.log_plot_sf_returns_distribution(prices, pred_prices)
                 self.log_plot_sf_aggregational_gaussianity(prices, pred_prices)
                 self.log_plot_sf_absence_autocorrelation(prices, pred_prices)
@@ -321,7 +331,7 @@ class PLModule(pl.LightningModule):
             )
 
             # Plot stylised fact
-            if self.hparams.dataset_type == "multistock":
+            if self.hparams.dataset_type == "multistock" and self.hparams.do_plot_stylised_facts:
                 self.log_plot_sf_volume_volatility_correlation(x_price, x_hat_price, x_volume, x_hat_volume)
 
     @staticmethod

@@ -2,12 +2,13 @@ model_type: 'timegan'
 
 dataset_train_target: thesis_gan.data.stockdataset_train_timegan.StockDatasetTrainTimegan
 
-sequence_length: 100
+sequence_length: 24
 
 module:
   _target_: thesis_gan.pl_modules.pl_module_timegan.MyLightningModule
 
   save_reals: True
+  do_plot_stylised_facts: True
 
   dataset_type: ${data.dataset_type}
   model_type: ${model.model_type}
@@ -32,11 +33,11 @@ module:
 
   optimizer_generator:
     _target_: torch.optim.Adam
-    lr: 0.01
+    lr: 0.001
 
   optimizer_discriminator:
     _target_: torch.optim.Adam
-    lr: 0.01
+    lr: 0.001
 
   embedder:
     _target_: thesis_gan.modules.timegan.embedder.Embedder

@@ -114,6 +114,7 @@ def get_plot_timeseries_conv(
     for i in range(I):
         for j in range(J):
             linear_index = i * J + j
+
             axes[i, j].set_title(f"{stock_names[linear_index]}", fontsize=20)
 
             if dataset_type == "DowJones":
@@ -165,6 +166,7 @@ def get_plot_timeseries_timegan(
     for i in range(I):
         for j in range(J):
             linear_index = i * J + j
+
             axes[i, j].set_title(f"{stock_names[linear_index]}", fontsize=20)
 
             if dataset_type == "DowJones":

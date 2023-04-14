@@ -5,7 +5,9 @@ dataset_train_target: thesis_gan.data.stockdataset_train_conv.StockDatasetTrainC
 module:
   _target_: thesis_gan.pl_modules.pl_module_conv.MyLightningModule
 
+  seed: ${train.seed_index}
   save_reals: True
+  do_plot_stylised_facts: False
 
   dataset_type: ${data.dataset_type}
   model_type: ${model.model_type}

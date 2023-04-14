@@ -27,7 +27,7 @@ class StockDatasetTrainTimegan(StockDataset):
         data_pipeline_volume: Pipeline,
         split: Split,
     ) -> None:
-        super().__init__(
+        super(StockDatasetTrainTimegan, self).__init__(
             path,
             target_feature_price,
             target_feature_volume,

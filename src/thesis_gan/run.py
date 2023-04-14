@@ -1,11 +1,11 @@
 import logging
-import warnings
 from typing import Dict, List
 
 import dotenv
 import hydra
 import omegaconf
 import pytorch_lightning as pl
+import tqdm
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pytorch_lightning import Callback
 
@@ -19,8 +19,8 @@ from nn_core.serialization import NNCheckpointIO
 import thesis_gan  # noqa
 from thesis_gan.common.utils import complete_configuration
 
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-warnings.filterwarnings("ignore", category=RuntimeWarning)
+# warnings.filterwarnings("ignore", category=DeprecationWarning)
+# warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 pylogger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ def build_callbacks(cfg: ListConfig, *args: Callback) -> List[Callback]:
     return callbacks
 
 
-def run(cfg: DictConfig) -> str:
+def run(cfg: DictConfig, sampling_seed=42) -> str:
     """Generic train loop.
 
     Args:
@@ -53,7 +53,7 @@ def run(cfg: DictConfig) -> str:
     Returns:
         the run directory inside the storage_dir used by the current experiment
     """
-    seed_index_everything(cfg.train)
+    seed_index_everything(cfg.train, sampling_seed=sampling_seed)
     dotenv.load_dotenv()
 
     fast_dev_run: bool = cfg.train.trainer.fast_dev_run
@@ -96,7 +96,7 @@ def run(cfg: DictConfig) -> str:
     ckpt_path = cfg.train["checkpoint"]
     if ckpt_path is not None:
         pylogger.info(f"Loading {ckpt_path}")
-        trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
+        trainer.validate(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
     else:
         pylogger.info("Starting training!")
         trainer.fit(model=model, datamodule=datamodule, ckpt_path=template_core.trainer_ckpt_path)
@@ -117,7 +117,11 @@ def main(cfg: omegaconf.DictConfig):
 
     cfg = complete_configuration(cfg)
 
-    run(cfg)
+    if cfg.train["checkpoint"] is not None:
+        for seed in tqdm.tqdm(cfg.train["sampling_seeds"], colour="green"):
+            run(cfg, sampling_seed=seed)
+    else:
+        run(cfg)
 
 
 if __name__ == "__main__":

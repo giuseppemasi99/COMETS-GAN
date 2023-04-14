@@ -29,7 +29,7 @@ class StockDatasetTrainConv(StockDataset):
         data_pipeline_volume: Pipeline,
         split: Split,
     ) -> None:
-        super().__init__(
+        super(StockDatasetTrainConv, self).__init__(
             path,
             target_feature_price,
             target_feature_volume,
@@ -61,6 +61,9 @@ class StockDatasetTrainConv(StockDataset):
         return_dict = dict(x=x, y=y)
 
         return return_dict
+
+    def __repr__(self) -> str:
+        return f"StockDatasetTrainConv({self.split=}, n_instances={len(self.data)})"
 
 
 @hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default", version_base=None)
