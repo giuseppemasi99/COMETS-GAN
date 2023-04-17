@@ -32,7 +32,7 @@ module:
   datasets:
     train:
       _target_: ${model.dataset_train_target}
-      path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_train.csv
+      path: ${oc.env:PROJECT_ROOT}/data/midprice_volume__KO_PEP_NVDA_KSU__train.csv
       target_feature_price: ${data.target_feature_price}
       target_feature_volume: ${data.target_feature_volume}
       stock_names: ${data.stock_names}
@@ -40,14 +40,14 @@ module:
 
     val:
       - _target_: thesis_gan.data.dataset_inference.StockDatasetInference
-        path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_val.csv
+        path: ${oc.env:PROJECT_ROOT}/data/midprice_volume__KO_PEP_NVDA_KSU__val.csv
         target_feature_price: ${data.target_feature_price}
         target_feature_volume: ${data.target_feature_volume}
         stock_names: ${data.stock_names}
 
     test:
       - _target_: thesis_gan.data.dataset_inference.StockDatasetInference
-        path: ${oc.env:PROJECT_ROOT}/data/ohlc_KO_PEP_NVDA_KSU_test.csv
+        path: ${oc.env:PROJECT_ROOT}/data/midprice_volume__KO_PEP_NVDA_KSU__test.csv
         target_feature_price: ${data.target_feature_price}
         target_feature_volume: ${data.target_feature_volume}
         stock_names: ${data.stock_names}
