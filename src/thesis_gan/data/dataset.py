@@ -29,7 +29,7 @@ class StockDataset(Dataset):
     ) -> None:
         super().__init__()
 
-        self.df = pd.read_csv(path)
+        self.df = pd.read_csv(path, index_col=0)
         self.target_feature_price = target_feature_price
         self.target_feature_volume = target_feature_volume
         self.stride = stride
