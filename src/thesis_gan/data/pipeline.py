@@ -36,8 +36,13 @@ class ScalerPipeline(Pipeline):
         self.round = round
         self.log = log
 
+        self.first_volumes = None
+
     def preprocess(self, df: pd.DataFrame, targets: List[str]) -> np.ndarray:
         df_targets = df[targets].to_numpy()
+        self.first_volumes = df_targets[0]
+
+        df_targets = df_targets[1:]
 
         if self.log:
             df_targets = np.log1p(df_targets)
@@ -54,6 +59,8 @@ class ScalerPipeline(Pipeline):
         if self.round:
             inv = np.rint(inv)
         inv = np.nan_to_num(inv)
+        inv = np.vstack([self.first_volumes, inv])
+
         return inv
 
 
