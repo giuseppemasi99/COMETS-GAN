@@ -1,3 +1,4 @@
+"""Docstring."""
 import logging
 from typing import Dict, List
 
@@ -18,6 +19,7 @@ from nn_core.serialization import NNCheckpointIO
 # Force the execution of __init__.py if this file is executed directly.
 import thesis_gan  # noqa
 from thesis_gan.common.utils import complete_configuration
+from thesis_gan.peturbations import run_perburbation_experiment
 
 # warnings.filterwarnings("ignore", category=DeprecationWarning)
 # warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -45,7 +47,7 @@ def build_callbacks(cfg: ListConfig, *args: Callback) -> List[Callback]:
 
 
 def run(cfg: DictConfig, sampling_seed=42) -> str:
-    """Generic train loop.
+    """Train loop.
 
     Args:
         cfg: run configuration, defined by Hydra in /conf
@@ -96,7 +98,10 @@ def run(cfg: DictConfig, sampling_seed=42) -> str:
     ckpt_path = cfg.train["checkpoint"]
     if ckpt_path is not None:
         pylogger.info(f"Loading {ckpt_path}")
-        trainer.validate(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
+        if cfg.train["sampling_seeds"] is not None:
+            trainer.validate(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
+        else:
+            run_perburbation_experiment(trainer, model, datamodule, metadata, ckpt_path)
     else:
         pylogger.info("Starting training!")
         trainer.fit(model=model, datamodule=datamodule, ckpt_path=template_core.trainer_ckpt_path)
@@ -110,14 +115,17 @@ def run(cfg: DictConfig, sampling_seed=42) -> str:
 
 @hydra.main(config_path=str(PROJECT_ROOT / "conf"), config_name="default", version_base=None)
 def main(cfg: omegaconf.DictConfig):
+    """Docstring."""
+
     def resolve_tuple(*args):
+        """Docstring."""
         return tuple(args)
 
     OmegaConf.register_new_resolver("as_tuple", resolve_tuple)
 
     cfg = complete_configuration(cfg)
 
-    if cfg.train["checkpoint"] is not None:
+    if cfg.train["checkpoint"] is not None and cfg.train["sampling_seeds"] is not None:
         for seed in tqdm.tqdm(cfg.train["sampling_seeds"], colour="green"):
             run(cfg, sampling_seed=seed)
     else:

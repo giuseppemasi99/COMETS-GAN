@@ -1,3 +1,4 @@
+"""Docstring."""
 import logging
 import os
 import pickle
@@ -33,9 +34,12 @@ pylogger = logging.getLogger(__name__)
 
 
 class PLModule(pl.LightningModule):
+    """Docstring."""
+
     logger: NNLogger
 
     def __init__(self, metadata: Optional[MetaData] = None, *args, **kwargs) -> None:
+        """Docstring."""
         super().__init__()
 
         # populate self.hparams with args and kwargs automagically!
@@ -44,27 +48,32 @@ class PLModule(pl.LightningModule):
 
         self.metadata = metadata
 
-        # TODO: controllare pipeline quando benchmark datasets
         self.pipeline_price = metadata.data_pipeline_price
         self.pipeline_volume = metadata.data_pipeline_volume
 
     def validation_step(self, batch: Any, batch_idx: int) -> Any:
+        """Docstring."""
         return batch
 
     def test_step(self, batch: Any, batch_idx: int) -> Any:
+        """Docstring."""
         return batch
 
     def validation_epoch_end(self, samples: Sequence[Dict]) -> None:
+        """Docstring."""
         self.validation_n_test_epoch_end(samples)
 
     def test_epoch_end(self, samples: Sequence[Dict]) -> None:
+        """Docstring."""
         self.validation_n_test_epoch_end(samples)
 
     def log_correlations(self, y: torch.Tensor, real_o_pred: str) -> None:
+        """Docstring."""
         d = get_correlations_dict(y, real_o_pred, self.hparams.feature_names)
         self.log_dict(d, on_step=False, on_epoch=True, prog_bar=False)
 
     def log_correlation_distances(self, y_real: torch.Tensor, y_pred: torch.Tensor, stage: str) -> None:
+        """Docstring."""
         d = get_correlation_distances_dict(y_real, y_pred, stage, self.hparams.feature_names)
         self.log_dict(d, on_step=False, on_epoch=True, prog_bar=False)
 
@@ -74,6 +83,7 @@ class PLModule(pl.LightningModule):
         pred: np.ndarray,
         price_o_volume: str,
     ) -> None:
+        """Docstring."""
         if self.hparams.model_type == "conv":
             fig = get_plot_timeseries_conv(
                 real,
@@ -84,7 +94,6 @@ class PLModule(pl.LightningModule):
                 price_o_volume,
             )
         else:
-
             if self.current_epoch < self.hparams.n_epochs_training_only_autoencoder:
                 stage = "Only reconstruction"
             else:
@@ -105,6 +114,7 @@ class PLModule(pl.LightningModule):
         prices: np.ndarray,
         pred_prices: np.ndarray,
     ) -> None:
+        """Docstring."""
         fig = get_plot_sf_returns_distribution(
             prices,
             pred_prices,
@@ -122,6 +132,7 @@ class PLModule(pl.LightningModule):
         prices: np.ndarray,
         pred_prices: np.ndarray,
     ) -> None:
+        """Docstring."""
         for stock_index, stock_name in enumerate(self.hparams.stock_names):
             fig = get_plot_sf_aggregational_gaussianity(
                 prices[stock_index],
@@ -140,6 +151,7 @@ class PLModule(pl.LightningModule):
         prices: np.ndarray,
         pred_prices: np.ndarray,
     ) -> None:
+        """Docstring."""
         for stock_index, stock_name in enumerate(self.hparams.stock_names):
             fig = get_plot_sf_absence_autocorrelation(
                 prices[stock_index],
@@ -158,6 +170,7 @@ class PLModule(pl.LightningModule):
         prices: np.ndarray,
         pred_prices: np.ndarray,
     ) -> None:
+        """Docstring."""
         fig = get_plot_sf_volatility_clustering(
             prices,
             pred_prices,
@@ -171,6 +184,7 @@ class PLModule(pl.LightningModule):
         plt.close(fig)
 
     def log_plot_sf_volume_volatility_correlation(self, x_price, x_hat_price, x_volume, x_hat_volume) -> None:
+        """Docstring."""
         fig = get_plot_sf_volume_volatility_correlation(
             x_price,
             x_hat_price,
@@ -186,42 +200,42 @@ class PLModule(pl.LightningModule):
         plt.close(fig)
 
     def log_metrics_volume(self, ts_real: np.ndarray, ts_pred: np.ndarray) -> None:
+        """Docstring."""
         for d in get_metrics_listdict(ts_real, ts_pred, self.hparams.stock_names):
             self.log_dict(d, on_step=False, on_epoch=True, prog_bar=False)
 
     def dict_with_tensors_to_numpy(self, d):
+        """Docstring."""
         for k, v in d.items():
             d[k] = v.numpy()
         return d
 
     def dict_with_tensors_cuda_to_cpu(self, d):
+        """Docstring."""
         for k, v in d.items():
             d[k] = v.cpu()
         return d
 
     def save_dict_in_pickle_file(self, d, file_name):
+        """Docstring."""
         if hasattr(self.logger, "run_dir"):
-            s = self.logger.run_dir.split("/")
-            run_id = s[-1]
-            s = s[:-1]
-            directory_diversity = "/".join(s) + "/diversity_val/" + run_id
-            self.__create_dirs_if_not_exist(directory_diversity)
+            self.__create_dirs_if_not_exist(self.logger.run_dir)
 
-            path_file = f"{directory_diversity}/{file_name}"
+            path_file = f"{self.logger.run_dir}/{file_name}"
             if not os.path.exists(path_file):
                 with open(path_file, "wb") as handle:
                     pickle.dump(d, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def aggregate_from_batches(self, samples: Sequence[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
-
+        """Docstring."""
         dict_with_reals = samples[0]
 
-        dict_with_reals["x"] = dict_with_reals["x"].squeeze().detach()
+        dict_with_reals["x"] = dict_with_reals["x"].squeeze(dim=0).detach()
 
         if self.hparams.target_feature_price is not None:
-            dict_with_reals["prices"] = dict_with_reals["prices"].squeeze().detach()
+            dict_with_reals["prices"] = dict_with_reals["prices"].squeeze(dim=0).detach()
         if self.hparams.target_feature_volume is not None:
-            dict_with_reals["volumes"] = dict_with_reals["volumes"].squeeze().detach()
+            dict_with_reals["volumes"] = dict_with_reals["volumes"].squeeze(dim=0).detach()
 
         return dict_with_reals
 
@@ -229,7 +243,7 @@ class PLModule(pl.LightningModule):
         self,
         x_hat: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
-
+        """Docstring."""
         return_dict = dict(x_hat=x_hat)
 
         pred_x_volume = None
@@ -256,6 +270,7 @@ class PLModule(pl.LightningModule):
         return return_dict
 
     def continue_validation_n_test_epoch_end(self, dict_with_reals, dict_with_preds) -> None:
+        """Docstring."""
         dict_with_reals = self.dict_with_tensors_cuda_to_cpu(dict_with_reals)
 
         x, x_hat = dict_with_reals["x"], dict_with_preds["x_hat"]
@@ -263,9 +278,10 @@ class PLModule(pl.LightningModule):
         # x_hat.shape = [n_features, sequence_length]
 
         # Logging the correlations metrics
-        self.log_correlations(x_hat, "pred")
-        self.log_correlations(x, "real")
-        self.log_correlation_distances(x, x_hat, "val")
+        if self.hparams.n_stocks > 1:
+            self.log_correlations(x_hat, "pred")
+            self.log_correlations(x, "real")
+            self.log_correlation_distances(x, x_hat, "val")
 
         dict_with_reals: Dict[str, np.array] = self.dict_with_tensors_to_numpy(dict_with_reals)
         dict_with_preds: Dict[str, np.array] = self.dict_with_tensors_to_numpy(dict_with_preds)
@@ -288,7 +304,7 @@ class PLModule(pl.LightningModule):
             self.do_plots(dict_with_reals, dict_with_preds)
 
     def do_plots(self, dict_with_reals: Dict[str, np.array], dict_with_preds: Dict[str, np.array]) -> None:
-
+        """Docstring."""
         x = dict_with_reals["x"]
         x_hat = dict_with_preds["x_hat"]
 

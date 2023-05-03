@@ -1,3 +1,4 @@
+"""Docstring."""
 import logging
 import math
 from typing import Dict, Optional, Sequence, Tuple
@@ -19,9 +20,12 @@ pylogger = logging.getLogger(__name__)
 
 
 class MyLightningModule(PLModule):
+    """Docstring."""
+
     logger: NNLogger
 
     def __init__(self, metadata: Optional[MetaData] = None, *args, **kwargs) -> None:
+        """Docstring."""
         super().__init__(metadata, *args, **kwargs)
 
         self.generator = hydra.utils.instantiate(
@@ -42,12 +46,14 @@ class MyLightningModule(PLModule):
         # self.discriminator_loss_criterion = nn.MarginRankingLoss()
 
     def forward(self, x: torch.Tensor, noise: torch.Tensor) -> torch.Tensor:
+        """Docstring."""
         # x.shape = [batch_size, n_features, encoder_length]
         out = self.generator(x, noise)
         # out.shape = [batch_size, n_features, decoder_length]
         return out
 
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int, optimizer_idx: int) -> torch.Tensor:
+        """Docstring."""
         # batch.keys() = ['x', 'y']
 
         x, y_real = batch["x"], batch["y"]
@@ -63,7 +69,7 @@ class MyLightningModule(PLModule):
             y_pred = self(x, noise)
             g_loss = -torch.mean(self.discriminator(x, y_pred))
             self.log_dict({"loss/generator": g_loss}, on_step=True, on_epoch=True, prog_bar=True)
-            if self.hparams.dataset_type == "multistock":
+            if self.hparams.dataset_type == "multistock" and self.hparams.n_stocks > 1:
                 self.log_correlation_distances(y_real, y_pred, stage="train")
             return g_loss
 
@@ -78,6 +84,7 @@ class MyLightningModule(PLModule):
             return d_loss
 
     def validation_n_test_epoch_end(self, samples: Sequence[Dict[str, torch.Tensor]]) -> None:
+        """Docstring."""
         # Aggregation of the batches
         dict_with_reals: Dict[str, torch.Tensor] = self.aggregate_from_batches(samples)
 
@@ -96,8 +103,9 @@ class MyLightningModule(PLModule):
         self,
         x: torch.Tensor,
         prediction_length: Optional[int] = None,
+        add_perturbation=False,
     ) -> Dict[str, torch.Tensor]:
-
+        """Docstring."""
         if prediction_length is None:
             prediction_length = self.hparams.decoder_length
 
@@ -106,12 +114,24 @@ class MyLightningModule(PLModule):
         x_hat = x[:, : self.hparams.encoder_length].unsqueeze(0)
         # x_hat.shape = [1, n_features, encoder_length]
 
+        std_1 = None
         for i in range(prediction_iterations):
             noise = torch.randn(1, 1, self.hparams.encoder_length, device=self.device)
             o = self(x_hat[:, :, -self.hparams.encoder_length :], noise)
-            x_hat = torch.concatenate((x_hat, o), dim=2)
 
-        x_hat = x_hat.squeeze().detach().cpu()
+            if add_perturbation and i == 5:
+                std_1 = torch.std(o, dim=2)[0, 0]
+                o[0, 0] = o[0, 0] + 0.5 * std_1
+                x_hat = torch.concatenate((x_hat, o), dim=2)
+
+            elif add_perturbation and i == 6:
+                o[0, 0] = o[0, 0] - 0.5 * std_1
+                x_hat = torch.concatenate((x_hat, o), dim=2)
+
+            else:
+                x_hat = torch.concatenate((x_hat, o), dim=2)
+
+        x_hat = x_hat.squeeze(dim=0).detach().cpu()
         # x_hat.shape = [n_features, sequence_length]
 
         x_hat = x_hat[:, : self.hparams.encoder_length + prediction_length]

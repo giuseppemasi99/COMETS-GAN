@@ -1,3 +1,4 @@
+"""Docstring."""
 import logging
 import math
 from typing import Dict, Optional, Sequence
@@ -20,9 +21,12 @@ pylogger = logging.getLogger(__name__)
 
 
 class MyLightningModule(PLModule):
+    """Docstring."""
+
     logger: NNLogger
 
     def __init__(self, metadata: Optional[MetaData] = None, *args, **kwargs) -> None:
+        """Docstring."""
         super().__init__(metadata, *args, **kwargs)
 
         self.embedder = hydra.utils.instantiate(
@@ -54,24 +58,28 @@ class MyLightningModule(PLModule):
         self.automatic_optimization = False
 
     def forward_embedder(self, x):
+        """Docstring."""
         # x.shape = [batch_size, n_features, sequence_length]
         h = self.embedder(x)
         # h.shape = [batch_size, sequence_length, hidden_size]
         return h
 
     def forward_recoverer(self, h):
+        """Docstring."""
         # h.shape = [batch_size, sequence_length, hidden_size]
         x_reconstructed = self.recoverer(h)
         # x_reconstructed.shape = [batch_size, n_features, sequence_length]
         return x_reconstructed
 
     def forward_autoencoder(self, x):
+        """Docstring."""
         # x.shape = [batch_size, n_features, sequence_length]
         x_tilde = self.forward_recoverer(self.forward_embedder(x))
         # x_tilde.shape = [batch_size, n_features, sequence_length]
         return x_tilde
 
     def forward_generator(self, batch_size):
+        """Docstring."""
         noise = torch.randn(batch_size, self.hparams.noise_dim, self.hparams.sequence_length, device=self.device)
         # noise.shape = [batch_size, noise_dim, sequence_length]
         e_hat = self.generator(noise)
@@ -79,12 +87,14 @@ class MyLightningModule(PLModule):
         return e_hat
 
     def forward_discriminator(self, h):
+        """Docstring."""
         # h_hat.shape = [batch_size, sequence_length, hidden_size]
         y = self.discriminator(h)
         # y.shape = [batch_size, sequence_length, 1]
         return y
 
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int):
+        """Docstring."""
         # batch.keys() = ['x']
 
         opt_embedder, opt_recoverer, opt_generator, opt_discriminator = self.optimizers()
@@ -182,8 +192,8 @@ class MyLightningModule(PLModule):
                 opt_discriminator.step()
 
     def validation_n_test_epoch_end(self, samples: Sequence[Dict[str, torch.Tensor]]) -> None:
+        """Docstring."""
         if self.current_epoch >= self.hparams.n_epochs_training_only_autoencoder:
-
             # Aggregation of the batches
             dict_with_reals: Dict[str, torch.Tensor] = self.aggregate_from_batches(samples)
 
@@ -197,6 +207,7 @@ class MyLightningModule(PLModule):
             self.continue_validation_n_test_epoch_end(dict_with_reals, dict_with_preds)
 
     def predict_autoregressively(self, prediction_length):
+        """Docstring."""
         prediction_iterations = math.ceil(prediction_length / self.hparams.sequence_length)
 
         x_hat = list()
@@ -204,7 +215,7 @@ class MyLightningModule(PLModule):
             h_hat = self.forward_generator(batch_size=1)
             x_hat_ = self.forward_recoverer(h_hat)
             # x_hat_.shape = [1, n_features, sequence_length]
-            x_hat_ = x_hat_.squeeze().detach().cpu()
+            x_hat_ = x_hat_.squeeze(dim=0).detach().cpu()
             # x_hat_.shape = [n_features, sequence_length]
             x_hat.append(x_hat_)
 
@@ -217,6 +228,7 @@ class MyLightningModule(PLModule):
         return self.unpack(x_hat)
 
     def __compute_loss_stdmean(self, x, x_hat):
+        """Docstring."""
         G_loss_V1 = torch.mean(
             torch.abs(
                 torch.sqrt(x_hat.var(dim=0, unbiased=False) + 1e-6) - torch.sqrt(x.var(dim=0, unbiased=False) + 1e-6)
@@ -228,6 +240,7 @@ class MyLightningModule(PLModule):
         return G_loss_V1 + G_loss_V2
 
     def on_train_start(self) -> None:
+        """Docstring."""
         self.log_dict({"loss/generator": np.NaN})
 
     def configure_optimizers(self):

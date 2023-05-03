@@ -1,3 +1,5 @@
+"""Docstring."""
+
 from itertools import combinations
 from typing import Any, Dict, Sequence
 
@@ -24,8 +26,9 @@ plt.rcParams["font.family"] = "serif"
 
 # CORRELATIONS
 def get_correlations_dict(y: torch.Tensor, real_o_pred: str, feature_names: Sequence) -> Dict[str, float]:
-    # y.shape = [batch_size, n_features, decoder_length]
-    correlations = corr(y).squeeze()
+    """Docstring."""
+    # y.shape = [n_features, decoder_length]
+    correlations = corr(y).squeeze(dim=0)
     metric_names = [f"{real_o_pred}_correlation/{'-'.join(x)}" for x in combinations(feature_names, 2)]
     d = {metric: correlation.item() for metric, correlation in zip(metric_names, correlations)}
     return d
@@ -35,6 +38,7 @@ def get_correlations_dict(y: torch.Tensor, real_o_pred: str, feature_names: Sequ
 def get_correlation_distances_dict(
     y_real: torch.Tensor, y_pred: torch.Tensor, stage: str, feature_names: Sequence
 ) -> Dict[str, float]:
+    """Docstring."""
     corr_real, corr_pred = corr(y_real), corr(y_pred)
     metric_names = [f"{stage}_corr_dist/{'-'.join(x)}" for x in combinations(feature_names, 2)]
     mse = nn.MSELoss(reduction="none")
@@ -45,6 +49,7 @@ def get_correlation_distances_dict(
 
 # VOLUMES METRICS
 def get_metrics_listdict(ts_real: np.ndarray, ts_pred: np.ndarray, stock_names) -> Sequence[Dict[str, float]]:
+    """Docstring."""
     list_to_return = list()
 
     stat_names = ["Mean", "Std", "Kurtosis", "Skew"]
@@ -95,47 +100,76 @@ def get_plot_timeseries_conv(
     encoder_length: int,
     price_o_volume: str,
 ) -> Any:
-    I, J = None, None
+    """Docstring."""
+    nrows, ncols = None, None
     if dataset_type == "multistock":
-        I, J = 2, 2
-    if dataset_type == "DowJones":
-        I, J = 5, 6
+        nrows, ncols = 2, 2
+    elif dataset_type == "DowJones":
+        nrows, ncols = 5, 6
+    elif len(stock_names) == 1:
+        nrows = ncols = 1
+    elif len(stock_names) == 2:
+        nrows, ncols = 2, 1
 
     history_indexes = np.arange(encoder_length)
     continuation_indexes = np.arange(encoder_length, real.shape[-1])
 
-    fig, axes = plt.subplots(I, J)
+    fig, axes = plt.subplots(nrows, ncols)
     legend_elements = [
         Line2D([0], [0], color="C0", lw=2, label="Observed"),
         Line2D([0], [0], color="C1", lw=2, label="Real continuation"),
         Line2D([0], [0], color="C2", lw=2, label="Predicted continuation"),
     ]
 
-    for i in range(I):
-        for j in range(J):
-            linear_index = i * J + j
+    if len(stock_names) == 1:
+        axes.set_title(f"{stock_names[0]}", fontsize=20)
 
-            axes[i, j].set_title(f"{stock_names[linear_index]}", fontsize=20)
+        if dataset_type == "DowJones":
+            axes.set_xticklabels([])
+            axes.set_yticklabels([])
+        else:
+            axes.axvline(x=encoder_length, color="r")
+
+        axes.plot(
+            history_indexes,
+            real[0, :encoder_length],
+            color="C0",
+        )
+        axes.plot(
+            continuation_indexes,
+            real[0, encoder_length:],
+            color="C1",
+        )
+        axes.plot(
+            continuation_indexes,
+            pred[0, encoder_length:],
+            color="C2",
+        )
+
+    else:
+        axes = axes.ravel()
+        for i, ax in enumerate(axes):
+            ax.set_title(f"{stock_names[i]}", fontsize=20)
 
             if dataset_type == "DowJones":
-                axes[i, j].set_xticklabels([])
-                axes[i, j].set_yticklabels([])
+                ax.set_xticklabels([])
+                ax.set_yticklabels([])
             else:
-                axes[i, j].axvline(x=encoder_length, color="r")
+                ax.axvline(x=encoder_length, color="r")
 
-            axes[i, j].plot(
+            ax.plot(
                 history_indexes,
-                real[linear_index, :encoder_length],
+                real[i, :encoder_length],
                 color="C0",
             )
-            axes[i, j].plot(
+            ax.plot(
                 continuation_indexes,
-                real[linear_index, encoder_length:],
+                real[i, encoder_length:],
                 color="C1",
             )
-            axes[i, j].plot(
+            ax.plot(
                 continuation_indexes,
-                pred[linear_index, encoder_length:],
+                pred[i, encoder_length:],
                 color="C2",
             )
 
@@ -149,6 +183,7 @@ def get_plot_timeseries_conv(
 def get_plot_timeseries_timegan(
     real: np.ndarray, pred: np.ndarray, dataset_type: str, stock_names: Sequence[str], price_o_volume: str, stage: str
 ) -> Any:
+    """Docstring."""
     I, J = None, None
     if dataset_type == "multistock":
         I, J = 2, 2
@@ -193,6 +228,7 @@ def get_plot_timeseries_timegan(
 
 # PLOT RETURNS DISTRIBUTION
 def draw_hist(ax, col_real, col_pred, stock_name, xlim=(-0.02, 0.02)):
+    """Docstring."""
     sb.histplot(data=col_real, kde=True, color="orange", legend=True, ax=ax)
     sb.histplot(data=col_pred, kde=True, color="green", legend=True, ax=ax)
 
@@ -209,6 +245,7 @@ def draw_hist(ax, col_real, col_pred, stock_name, xlim=(-0.02, 0.02)):
 
 
 def compute_returns_distribution(ax, prices_real, prices_pred, stock_name):
+    """Docstring."""
     prices_real = pd.DataFrame(prices_real, columns=["mid_price"])
     prices_pred = pd.DataFrame(prices_pred, columns=["mid_price"])
     prices_real["Returns"] = prices_real["mid_price"].pct_change()
@@ -223,7 +260,7 @@ def get_plot_sf_returns_distribution(
     prices_pred: np.ndarray,
     stock_names,
 ) -> Any:
-
+    """Docstring."""
     fig, axes = plt.subplots(2, 2)
     for i in range(2):
         for j in range(2):
@@ -240,6 +277,7 @@ def get_plot_sf_returns_distribution(
 
 # PLOT AGGREGATIONAL GAUSSIANITY
 def draw_hist_multi(col_real, col_pred, xlim=(-0.02, 0.02), ax=None):
+    """Docstring."""
     sb.histplot(data=col_real, kde=True, color="orange", legend=True, ax=ax)
     sb.histplot(data=col_pred, kde=True, color="green", legend=True, ax=ax)
 
@@ -254,7 +292,7 @@ def draw_hist_multi(col_real, col_pred, xlim=(-0.02, 0.02), ax=None):
 
 
 def get_aggregational_gaussianities(prices_real, prices_pred):
-
+    """Docstring."""
     prices_real = pd.DataFrame(prices_real, columns=["mid_price"])
     prices_pred = pd.DataFrame(prices_pred, columns=["mid_price"])
 
@@ -282,6 +320,7 @@ def get_aggregational_gaussianities(prices_real, prices_pred):
 
 
 def get_plot_sf_aggregational_gaussianity(prices: np.array, pred_prices: np.array, stock_name: str) -> Any:
+    """Docstring."""
     fig, axs = plt.subplots(nrows=2, ncols=3)
     df_real, df_pred = get_aggregational_gaussianities(prices, pred_prices)
 
@@ -297,6 +336,7 @@ def get_plot_sf_aggregational_gaussianity(prices: np.array, pred_prices: np.arra
 
 # PLOT ABSENCE AUTOCORRELATION
 def corr_plot(corr, ax, title):
+    """Docstring."""
     sb.set(style="white")
     cmap = sb.diverging_palette(220, 20, as_cmap=True)
     sb.heatmap(corr, annot=True, cmap=cmap, square=True, linewidths=3, linecolor="w", ax=ax)
@@ -306,6 +346,7 @@ def corr_plot(corr, ax, title):
 
 
 def get_plot_sf_absence_autocorrelation(prices_real: np.array, prices_pred: np.array, stock_name: str) -> Any:
+    """Docstring."""
     prices_real = pd.DataFrame(prices_real, columns=["mid_price"])
     prices_pred = pd.DataFrame(prices_pred, columns=["mid_price"])
 
@@ -346,6 +387,7 @@ def get_plot_sf_absence_autocorrelation(prices_real: np.array, prices_pred: np.a
 
 # PLOT VOLATILITY CLUSTERING
 def compute_volatility_clustering(ax, prices_real, prices_pred, stock_name):
+    """Docstring."""
     prices_real = pd.DataFrame(prices_real, columns=["mid_price"])
     prices_pred = pd.DataFrame(prices_pred, columns=["mid_price"])
 
@@ -363,6 +405,7 @@ def compute_volatility_clustering(ax, prices_real, prices_pred, stock_name):
 
 
 def get_plot_sf_volatility_clustering(prices, pred_prices, stock_names):
+    """Docstring."""
     fig, axs = plt.subplots(2, 2)
     legend_elements = [
         Line2D([0], [0], color="C1", lw=2, label="Real"),
@@ -385,6 +428,7 @@ def get_plot_sf_volatility_clustering(prices, pred_prices, stock_names):
 
 # PLOT VOLUME VOLATILITY CORRELATION
 def get_plot_sf_volume_volatility_correlation(x_price, x_hat_price, x_volume, x_hat_volume, stock_names, delta=15):
+    """Docstring."""
     real_avg_log_returns = compute_avg_log_returns(x_price, delta)
     real_avg_volumes = compute_avg_volumes(x_volume, delta)
     pred_avg_log_returns = compute_avg_log_returns(x_hat_price, delta)
