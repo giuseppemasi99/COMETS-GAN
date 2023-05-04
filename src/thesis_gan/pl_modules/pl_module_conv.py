@@ -103,7 +103,7 @@ class MyLightningModule(PLModule):
         self,
         x: torch.Tensor,
         prediction_length: Optional[int] = None,
-        add_perturbation=False,
+        sigma_scaler=None,
     ) -> Dict[str, torch.Tensor]:
         """Docstring."""
         if prediction_length is None:
@@ -119,13 +119,13 @@ class MyLightningModule(PLModule):
             noise = torch.randn(1, 1, self.hparams.encoder_length, device=self.device)
             o = self(x_hat[:, :, -self.hparams.encoder_length :], noise)
 
-            if add_perturbation and i == 5:
+            if sigma_scaler is not None and i == 9:
                 std_1 = torch.std(o, dim=2)[0, 0]
-                o[0, 0] = o[0, 0] + 0.5 * std_1
+                o[0, 0] = o[0, 0] + sigma_scaler * std_1
                 x_hat = torch.concatenate((x_hat, o), dim=2)
 
-            elif add_perturbation and i == 6:
-                o[0, 0] = o[0, 0] - 0.5 * std_1
+            elif sigma_scaler is not None and i == 10:
+                o[0, 0] = o[0, 0] - sigma_scaler * std_1
                 x_hat = torch.concatenate((x_hat, o), dim=2)
 
             else:

@@ -1,26 +1,24 @@
 """Docstring."""
 import pickle
+from typing import Dict
 
 import pytorch_lightning as pl
 
-from thesis_gan.pl_modules.pl_module_conv import MyLightningModule
+RUN_ID_PRICE = "24uxrxqz"
+CHECKPOINT_PATH = f"storage/thesis-gan/{RUN_ID_PRICE}/checkpoints/checkpoint_274.ckpt"
 
-RUN_ID_PRICE = "3m9c18s6"
+SIGMA_SCALER = 0.7
 
 
-def run_perburbation_experiment(
-    trainer: pl.Trainer, model: MyLightningModule, datamodule: pl.LightningDataModule, metadata, ckpt_path
-):
+def run_perburbation_experiment(model: pl.LightningModule, datamodule: pl.LightningDataModule, metadata: Dict):
     """Docstring."""
-    model = model.load_from_checkpoint("storage/thesis-gan/3m9c18s6/checkpoints/checkpoint_70.ckpt", metadata=metadata)
-
     val_datasets = datamodule.val_datasets[0]
     x = val_datasets[0]["x"]
 
-    # dict_with_synthetic = model.predict_autoregressively(x, prediction_length=3900)
-    # with open(f"storage/thesis-gan/{RUN_ID_PRICE}/perturbations/no_perturbation.pickle", 'wb') as f:
-    #     pickle.dump(dict_with_synthetic, f, pickle.HIGHEST_PROTOCOL)
+    model = model.load_from_checkpoint(CHECKPOINT_PATH, metadata=metadata)
 
-    dict_with_synthetic_perturbed = model.predict_autoregressively(x, prediction_length=3900, add_perturbation=True)
-    with open(f"storage/thesis-gan/{RUN_ID_PRICE}/perturbations/perturbation.pickle", "wb") as f:
+    dict_with_synthetic_perturbed = model.predict_autoregressively(x, prediction_length=3900, sigma_scaler=SIGMA_SCALER)
+    with open(
+        f"storage/thesis-gan/{RUN_ID_PRICE}/perturbations/perturbation_sigmascaler={SIGMA_SCALER}.pickle", "wb"
+    ) as f:
         pickle.dump(dict_with_synthetic_perturbed, f, pickle.HIGHEST_PROTOCOL)

@@ -101,7 +101,7 @@ def run(cfg: DictConfig, sampling_seed=42) -> str:
         if cfg.train["sampling_seeds"] is not None:
             trainer.validate(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
         else:
-            run_perburbation_experiment(trainer, model, datamodule, metadata, ckpt_path)
+            run_perburbation_experiment(model, datamodule, metadata)
     else:
         pylogger.info("Starting training!")
         trainer.fit(model=model, datamodule=datamodule, ckpt_path=template_core.trainer_ckpt_path)
@@ -129,7 +129,7 @@ def main(cfg: omegaconf.DictConfig):
         for seed in tqdm.tqdm(cfg.train["sampling_seeds"], colour="green"):
             run(cfg, sampling_seed=seed)
     else:
-        run(cfg)
+        run(cfg, sampling_seed=1)
 
 
 if __name__ == "__main__":
