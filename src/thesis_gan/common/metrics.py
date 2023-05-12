@@ -108,7 +108,7 @@ def get_plot_timeseries_conv(
         nrows, ncols = 5, 6
     elif len(stock_names) == 1:
         nrows = ncols = 1
-    elif len(stock_names) == 2:
+    elif len(stock_names) == 2 or len(stock_names) == 3:
         nrows, ncols = 2, 1
 
     history_indexes = np.arange(encoder_length)
@@ -148,7 +148,8 @@ def get_plot_timeseries_conv(
 
     else:
         axes = axes.ravel()
-        for i, ax in enumerate(axes):
+        for i in range(len(stock_names)):
+            ax = axes[i]
             ax.set_title(f"{stock_names[i]}", fontsize=20)
 
             if dataset_type == "DowJones":

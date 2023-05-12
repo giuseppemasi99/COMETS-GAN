@@ -100,10 +100,7 @@ class MyLightningModule(PLModule):
         self.continue_validation_n_test_epoch_end(dict_with_reals, dict_with_preds)
 
     def predict_autoregressively(
-        self,
-        x: torch.Tensor,
-        prediction_length: Optional[int] = None,
-        sigma_scaler=None,
+        self, x: torch.Tensor, prediction_length: Optional[int] = None, sigma_scaler=None, KOret_WoPer=None
     ) -> Dict[str, torch.Tensor]:
         """Docstring."""
         if prediction_length is None:
@@ -114,22 +111,27 @@ class MyLightningModule(PLModule):
         x_hat = x[:, : self.hparams.encoder_length].unsqueeze(0)
         # x_hat.shape = [1, n_features, encoder_length]
 
-        std_1 = None
+        i_start, i_end = 8, 25
+        n_iterations = i_end - i_start
         for i in range(prediction_iterations):
             noise = torch.randn(1, 1, self.hparams.encoder_length, device=self.device)
             o = self(x_hat[:, :, -self.hparams.encoder_length :], noise)
 
-            if sigma_scaler is not None and i == 9:
-                std_1 = torch.std(o, dim=2)[0, 0]
-                o[0, 0] = o[0, 0] + sigma_scaler * std_1
-                x_hat = torch.concatenate((x_hat, o), dim=2)
+            if sigma_scaler is not None and i in range(i_start, i_end):
+                std_KO, _ = torch.std(o, dim=2)[0]
+                o[0, 0] = o[0, 0] + sigma_scaler * std_KO
 
-            elif sigma_scaler is not None and i == 10:
-                o[0, 0] = o[0, 0] - sigma_scaler * std_1
-                x_hat = torch.concatenate((x_hat, o), dim=2)
+            elif sigma_scaler is not None and i in range(i_end, i_end + n_iterations):
+                std_KO, _ = torch.std(o, dim=2)[0]
+                o[0, 0] = o[0, 0] - sigma_scaler * std_KO
 
-            else:
-                x_hat = torch.concatenate((x_hat, o), dim=2)
+            if sigma_scaler is not None and KOret_WoPer is not None and i >= i_end + n_iterations:
+                starting = x_hat.shape[-1]
+                decoder_length = o.shape[-1]
+                sub = KOret_WoPer[starting : starting + decoder_length]
+                o[0, 0] = torch.Tensor(sub)
+
+            x_hat = torch.concatenate((x_hat, o), dim=2)
 
         x_hat = x_hat.squeeze(dim=0).detach().cpu()
         # x_hat.shape = [n_features, sequence_length]
