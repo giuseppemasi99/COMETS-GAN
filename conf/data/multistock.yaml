@@ -1,5 +1,6 @@
 dataset_type: multistock
-stock_names: [KO, PEP, NVDA, KSU]
+#stock_names: [KO, PEP, NVDA, KSU]
+stock_names: [KO, PEP]
 
 target_feature_price: mid_price
 target_feature_volume: #volume

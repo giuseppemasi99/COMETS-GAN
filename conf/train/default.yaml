@@ -2,11 +2,11 @@
 seed_index: 42
 deterministic: False
 
-checkpoint: #'storage/thesis-gan/13v3dpxg/checkpoints/epoch=121-step=64415.ckpt.zip'
-sampling_seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+checkpoint: 'storage/thesis-gan/13v3dpxg/checkpoints/epoch=70-step=37487.ckpt.zip'
+sampling_seeds: #[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
 
 trainer:
-  fast_dev_run: True # Enable this for debug purposes
+  fast_dev_run: False # Enable this for debug purposes
   detect_anomaly: False # Enable this for debug purposes
   gpus: 1
   precision: 32

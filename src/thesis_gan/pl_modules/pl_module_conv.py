@@ -100,7 +100,11 @@ class MyLightningModule(PLModule):
         self.continue_validation_n_test_epoch_end(dict_with_reals, dict_with_preds)
 
     def predict_autoregressively(
-        self, x: torch.Tensor, prediction_length: Optional[int] = None, sigma_scaler=None, KOret_WoPer=None
+        self,
+        x: torch.Tensor,
+        prediction_length: Optional[int] = None,
+        sigma_scaler=None,
+        linear=False,
     ) -> Dict[str, torch.Tensor]:
         """Docstring."""
         if prediction_length is None:
@@ -111,8 +115,8 @@ class MyLightningModule(PLModule):
         x_hat = x[:, : self.hparams.encoder_length].unsqueeze(0)
         # x_hat.shape = [1, n_features, encoder_length]
 
-        i_start, i_end = 8, 25
-        n_iterations = i_end - i_start
+        i_start, i_end = 4, 30
+
         for i in range(prediction_iterations):
             noise = torch.randn(1, 1, self.hparams.encoder_length, device=self.device)
             o = self(x_hat[:, :, -self.hparams.encoder_length :], noise)
@@ -121,17 +125,14 @@ class MyLightningModule(PLModule):
                 std_KO, _ = torch.std(o, dim=2)[0]
                 o[0, 0] = o[0, 0] + sigma_scaler * std_KO
 
-            elif sigma_scaler is not None and i in range(i_end, i_end + n_iterations):
-                std_KO, _ = torch.std(o, dim=2)[0]
-                o[0, 0] = o[0, 0] - sigma_scaler * std_KO
+            if linear and i >= i_start:
+                o[0, 0] = torch.ones(150, device=self.device) / 10
 
-            if sigma_scaler is not None and KOret_WoPer is not None and i >= i_end + n_iterations:
-                starting = x_hat.shape[-1]
-                decoder_length = o.shape[-1]
-                sub = KOret_WoPer[starting : starting + decoder_length]
-                o[0, 0] = torch.Tensor(sub)
+            # elif sigma_scaler is not None and i in range(i_end + 2*n_iterations, i_end + 3*n_iterations):
+            #     std_KO, _ = torch.std(o, dim=2)[0]
+            #     o[0, 0] = o[0, 0] - sigma_scaler * std_KO
 
-            x_hat = torch.concatenate((x_hat, o), dim=2)
+            x_hat = torch.cat((x_hat, o), dim=2)
 
         x_hat = x_hat.squeeze(dim=0).detach().cpu()
         # x_hat.shape = [n_features, sequence_length]
