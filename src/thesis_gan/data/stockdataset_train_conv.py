@@ -48,7 +48,6 @@ class StockDatasetTrainConv(StockDataset):
         return ((len(self.data) - (self.encoder_length + self.decoder_length)) // self.stride) + 1
 
     def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
-
         x_slice = slice(self.stride * index, self.stride * index + self.encoder_length)
         y_slice = slice(
             self.stride * index + self.encoder_length,

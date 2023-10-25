@@ -128,7 +128,6 @@ class MyDataModule(pl.LightningDataModule):
         pass
 
     def setup(self, stage: Optional[str] = None):
-
         data_pipeline_price = hydra.utils.instantiate(self.data_pipeline_price)
         data_pipeline_volume = hydra.utils.instantiate(self.data_pipeline_volume)
 

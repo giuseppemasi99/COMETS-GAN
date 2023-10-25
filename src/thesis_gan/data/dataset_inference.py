@@ -39,7 +39,6 @@ class StockDatasetInference(StockDataset):
         return 1
 
     def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
-
         x = torch.as_tensor(self.data.T, dtype=torch.float)
         return_dict = dict(x=x)
 
