@@ -1,0 +1,16 @@
+seed: 42
+
+encoder_length: 390
+decoder_length: 150
+batch_size: 32
+
+defaults:
+  - dataset: multistock
+  - datamodule: default
+  - model: default
+  - logger: default
+  - trainer: default
+  - hydra: default
+  - override hydra/hydra_logging: disabled
+  - override hydra/job_logging: disabled
+  - _self_

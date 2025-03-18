@@ -1,0 +1,19 @@
+_target_: model.pl_model.MyLightningModule
+
+encoder_length: ${encoder_length}
+decoder_length: ${decoder_length}
+
+generator:
+  _target_: model.modules.generator.tcn.TCNGenerator
+  encoder_length: ${encoder_length}
+  decoder_length: ${decoder_length}
+  dropout: 0.2
+
+discriminator:
+  _target_: model.modules.discriminator.cnn.CNNDiscriminator
+  encoder_length: ${encoder_length}
+  decoder_length: ${decoder_length}
+  hidden_dim: 256 # 128 for benchmark
+  dropout: 0.2
+
+n_critic: 5

@@ -1,0 +1,23 @@
+name: multistock
+stock_names: [KO, PEP, NVDA, KSU]
+
+target_feature_price: mid_price
+target_feature_volume: volume
+
+
+train:
+  _target_: dataset.dataset.StockDataset
+  path: data/midprice_volume__KO_PEP_NVDA_KSU__train.csv
+  target_feature_price: ${dataset.target_feature_price}
+  target_feature_volume: ${dataset.target_feature_volume}
+  encoder_length: ${encoder_length}
+  decoder_length: ${decoder_length}
+  stock_names: ${dataset.stock_names}
+  stride: 1
+
+val:
+  _target_: dataset.dataset.StockDataset
+  path: data/midprice_volume__KO_PEP_NVDA_KSU__test.csv
+  target_feature_price: ${dataset.target_feature_price}
+  target_feature_volume: ${dataset.target_feature_volume}
+  stock_names: ${dataset.stock_names}
