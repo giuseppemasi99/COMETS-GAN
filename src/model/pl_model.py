@@ -77,18 +77,19 @@ class MyLightningModule(LightningModule):
         opt_g: Optimizer
         opt_d: Optimizer
 
-        x, y_real = batch["x"], batch["y"]
+        x, y_real, t, fut_t = batch["x"], batch["y"], batch["t_past"].unsqueeze(1), batch["fut_t"].unsqueeze(1)
         # x.shape [B, n_features, encoder_length]
         # y_real.shape [B, n_features, decoder_length]
 
         noise = torch.randn((x.shape[0], 1, self.encoder_length), device=self.device)
+        noise = torch.cat((noise, t), dim=1)
         # noise.shape = [B, 1, encoder_length]
 
         # Train discriminator
         if batch_idx > 0 and batch_idx % self.n_critic == 0:
             y_pred = self(x, noise)
-            real_validity = self.discriminator(x, y_real)
-            fake_validity = self.discriminator(x, y_pred)
+            real_validity = self.discriminator(x, y_real, t, fut_t)
+            fake_validity = self.discriminator(x, y_pred, t, fut_t)
             d_loss = -torch.mean(real_validity) + torch.mean(fake_validity)
             self.log("loss/discriminator", d_loss, prog_bar=True)
             opt_d.zero_grad()
@@ -115,14 +116,19 @@ class MyLightningModule(LightningModule):
         self.log('corr_dist/mean', corr_distances.mean(), prog_bar=True)
 
     def validation_step(self, batch: Dict[str, torch.Tensor]) -> None:
-        x = batch['x']
+
+        x, t = batch["x"], batch["t_past"].unsqueeze(1)
+        # x.shape [B, n_features, encoder_length]
+        # y_real.shape [B, n_features, decoder_length]
 
         x_hat = x[:, :, :self.encoder_length]
-
+        t_hat = t[:, :, :self.encoder_length]
+     
         prediction_iterations = math.ceil(self.generation_length / self.decoder_length)
 
         for _ in range(prediction_iterations):
             noise = torch.randn(1, 1, self.encoder_length, device=self.device)
+            noise = torch.cat((noise, t_hat), dim=1)
             o = self(x_hat[:, :, -self.encoder_length:], noise)
             x_hat = torch.cat((x_hat, o), dim=2)
         

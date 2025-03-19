@@ -31,7 +31,7 @@ class CNNDiscriminator(nn.Module):
         super(CNNDiscriminator, self).__init__()
         self.n_features = n_features
 
-        self.convblock1 = nn.Sequential(conv_block(n_features, 16, dropout), nn.MaxPool1d(2))
+        self.convblock1 = nn.Sequential(conv_block(n_features+1, 16, dropout), nn.MaxPool1d(2))
         self.convblock2 = nn.Sequential(conv_block(16, 16, dropout), nn.MaxPool1d(2))
         self.convblock3 = conv_block(16, 16, dropout)
         self.linear1 = linear_block((encoder_length + decoder_length) // 4 * 16, hidden_dim * 4, dropout)
@@ -43,7 +43,12 @@ class CNNDiscriminator(nn.Module):
             corr_features = factorial(n_features) // (2 * factorial(n_features - 2))
             self.linear_corr = spectral_norm(nn.Linear(corr_features, 1), n_power_iterations=10)
 
-    def forward(self, x: torch.Tensor, y_continuation: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, y_continuation: torch.Tensor, past_t : torch.Tensor, fut_t : torch.Tensor) -> torch.Tensor:
+        # x : history 
+        # y : generated / real 
+        x = torch.cat((x, past_t), dim=1)
+        y_continuation_ = y_continuation.clone()
+        y_continuation = torch.cat((y_continuation, fut_t), dim=1)
         concatenated = torch.cat((x, y_continuation), dim=-1)
 
         o = self.convblock1(concatenated)
@@ -56,6 +61,6 @@ class CNNDiscriminator(nn.Module):
         output = self.linear_out(o)
 
         if self.n_features > 1:
-            output += self.linear_corr(corr(y_continuation))
+            output += self.linear_corr(corr(y_continuation_))
 
         return output

@@ -1,6 +1,9 @@
 import os
 import pickle
 
+
+# Min-Max [-1, 1] also on prices : tanh
+
 import hydra
 import torch
 import wandb

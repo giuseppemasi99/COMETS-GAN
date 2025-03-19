@@ -74,7 +74,7 @@ class NoisyTemporalConvNet(nn.Module):
         num_levels = len(num_channels)
         for i in range(num_levels):
             dilation_size = 2**i
-            in_channels = num_inputs if i == 0 else num_channels[i - 1] + 1
+            in_channels = num_inputs if i == 0 else num_channels[i - 1] + 2
             out_channels = num_channels[i]
             layers += [
                 TemporalBlock(
@@ -108,7 +108,7 @@ class TCNGenerator(nn.Module):
         self.is_prices = is_prices
         self.is_volumes = is_volumes
 
-        self.tcn = NoisyTemporalConvNet(n_features + 1, [32, 64, 128, 64, 32, 16, n_features], dropout=dropout)
+        self.tcn = NoisyTemporalConvNet(n_features + 2, [32, 64, 128, 64, 32, 16, n_features], dropout=dropout)
         self.linear_out = nn.Linear(encoder_length, decoder_length)
         
         if is_volumes:
@@ -118,8 +118,10 @@ class TCNGenerator(nn.Module):
         # x.shape = [batch_size, n_features, encoder_length]
         # noise.shape = [batch_size, 1, encoder_length]
 
-        o = self.tcn(x, noise)
-        o = self.linear_out(o)
+        o = self.tcn(x, noise) 
+        ## o :  [batch_size, n_features, encoder_length]
+        o = self.linear_out(o) 
+        ## o: [batch_size, n_features, decoder_lenght]
 
         if self.is_volumes and self.is_prices:
             o_price, o_volume = o[:, :self.n_stocks, :], o[:, self.n_stocks :, :]
