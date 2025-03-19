@@ -134,37 +134,35 @@ class MyLightningModule(LightningModule):
         x_hat_volume = self.pipeline_volume.inverse_transform(x_hat[self.n_stocks:].T).T
         x_volume = self.pipeline_volume.inverse_transform(x[self.n_stocks:].T).T
 
-        path = f'{self.path_storage}/synthetic/{self.current_epoch}'
+        path = f'{self.path_storage}/synthetic/epoch={self.current_epoch}'
         os.makedirs(path, exist_ok=True)
         with open(f'{path}/sample.pkl', 'wb') as f:
             d = dict(x_hat_price=x_hat_price, x_price=x_price, x_hat_volume=x_hat_volume, x_volume=x_volume)
             pickle.dump(d, f, pickle.HIGHEST_PROTOCOL)
 
-        def make_plot(x, x_hat):
+        def make_plot(x, x_hat, type='price'):
             fig, axes = plt.subplots(2, 2, figsize=(7, 5))
             axes = axes.ravel()
-            
             label = True
             for ax, r, s, f in zip(axes, x, x_hat, self.stock_names):
-                ax.plot(r, label='Real' if label else None)
-                ax.plot(s, label='Synthetic' if label else None)
+                ax.plot(r, label='Real' if label else None, alpha=.5 if type ==' volume' else 1)
+                ax.plot(s, label='Synthetic' if label else None, alpha=.5 if type ==' volume' else 1)
                 label = False
                 ax.set_title(f)
-
             fig.legend()
             fig.tight_layout()
             plt.close(fig)
             return fig
-        
+
         fig_price = make_plot(x_price, x_hat_price)
-        fig_volume = make_plot(x_volume, x_hat_volume)
+        fig_volume = make_plot(x_volume, x_hat_volume, type='volume')
 
         title_wandb = f'prices/Epoch:{self.current_epoch}'
         self.logger.experiment.log({title_wandb: wandb.Image(fig_price)})
         title_wandb = f'volumes/Epoch:{self.current_epoch}'
         self.logger.experiment.log({title_wandb: wandb.Image(fig_volume)})
 
-    def configure_optimizers(self) -> Tuple[Dict[str, Optimizer], Dict[str, Optimizer]]:
+    def configure_optimizers(self) -> Tuple[Optimizer, Optimizer]:
         opt_g = torch.optim.RMSprop(self.generator.parameters(), lr=1e-4)
         opt_d = torch.optim.RMSprop(self.discriminator.parameters(), lr=3e-4)
         return opt_g, opt_d

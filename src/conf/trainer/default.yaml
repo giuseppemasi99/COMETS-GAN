@@ -1,5 +1,5 @@
 _target_: lightning.pytorch.Trainer
-fast_dev_run: False
+fast_dev_run: True
 detect_anomaly: ${trainer.fast_dev_run}
 max_epochs: 300
 accumulate_grad_batches: 1
@@ -10,7 +10,7 @@ val_check_interval: 1.0
 callbacks:
   - _target_: lightning.pytorch.callbacks.ModelCheckpoint
     dirpath: ${path_checkpoint}
-    filename: 'epoch={epoch:02d}-loss_g={loss/generator:.3f}'
+    filename: 'epoch={epoch:03d}'
     monitor: 'loss/generator'
     save_top_k: -1
     mode: 'min'

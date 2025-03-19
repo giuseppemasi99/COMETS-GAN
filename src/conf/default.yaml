@@ -2,7 +2,7 @@ seed: 42
 
 encoder_length: 390
 decoder_length: 150
-batch_size: 32
+batch_size: 128
 
 defaults:
   - dataset: multistock

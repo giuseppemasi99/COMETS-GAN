@@ -33,6 +33,6 @@ class MyDataModule(LightningDataModule):
 
     def val_dataloader(self) -> DataLoader:
         return DataLoader(
-            self.dataset_val, batch_size=self.batch_size, shuffle=True, 
+            self.dataset_val, batch_size=self.batch_size,
             num_workers=self.num_workers, pin_memory=self.pin_memory
         )
