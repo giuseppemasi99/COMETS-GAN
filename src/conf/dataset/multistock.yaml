@@ -6,7 +6,7 @@ target_feature_volume: volume
 
 
 train:
-  _target_: dataset.dataset.StockDataset
+  _target_: dataset.train_dataset.StockDatasetTrain
   path: data/midprice_volume__KO_PEP_NVDA_KSU__train.csv
   target_feature_price: ${dataset.target_feature_price}
   target_feature_volume: ${dataset.target_feature_volume}
@@ -16,8 +16,18 @@ train:
   stride: 1
 
 val:
-  _target_: dataset.dataset.StockDataset
-  path: data/midprice_volume__KO_PEP_NVDA_KSU__test.csv
+  _target_: dataset.val_dataset.StockDatasetVal
+  path: data/midprice_volume__KO_PEP_NVDA_KSU__val.csv
   target_feature_price: ${dataset.target_feature_price}
   target_feature_volume: ${dataset.target_feature_volume}
   stock_names: ${dataset.stock_names}
+
+predict:
+  _target_: dataset.predict_dataset.StockDatasetPredict
+  path: data/midprice_volume__KO_PEP_NVDA_KSU__test.csv
+  target_feature_price: ${dataset.target_feature_price}
+  target_feature_volume: ${dataset.target_feature_volume}
+  encoder_length: ${encoder_length}
+  stock_names: ${dataset.stock_names}
+  stride: 390
+  generation_length: ${generation_length}

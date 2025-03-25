@@ -1,17 +1,14 @@
 import os
 import pickle
 
-
-# Min-Max [-1, 1] also on prices : tanh
-
 import hydra
 import torch
-import wandb
 from hydra.utils import instantiate
 from lightning.pytorch import Trainer, seed_everything
 from lightning.pytorch.loggers import WandbLogger
 from omegaconf import DictConfig, OmegaConf, open_dict
 
+import wandb
 from dataset.datamodule import MyDataModule
 from model.pl_model import MyLightningModule
 
@@ -33,8 +30,6 @@ def launch(cfg: DictConfig) -> str:
     # logger.log_hyperparams(extract_params(cfg))
 
     datamodule: MyDataModule = instantiate(cfg.datamodule, _recursive_=False)
-    is_prices = cfg.dataset.target_feature_price is not None
-    is_volumes = cfg.dataset.target_feature_volume is not None
 
     os.makedirs(cfg.path_storage, exist_ok=True)
     with open(f'{cfg.path_storage}/pipeline.pkl', 'wb') as f:
@@ -43,14 +38,25 @@ def launch(cfg: DictConfig) -> str:
 
     model: MyLightningModule = instantiate(
         cfg.model, stock_names=cfg.dataset.stock_names, 
-        is_prices=is_prices, is_volumes=is_volumes, 
         pipeline_price=datamodule.pipeline_price, pipeline_volume=datamodule.pipeline_volume,
         path_storage=cfg.path_storage,
         _recursive_=False
     )
 
     trainer: Trainer = instantiate(cfg.trainer, logger=logger)
-    trainer.fit(model=model, datamodule=datamodule)
+
+    if cfg.ckpt_path:
+        epoch = int(cfg.ckpt_path.split('epoch=')[1].split('.')[0])
+        path_storage = cfg.ckpt_path[:cfg.ckpt_path.index('checkpoints')]
+        path = f'{path_storage}/inference_data/epoch={epoch}'
+        d = trainer.predict(model=model, datamodule=datamodule, ckpt_path=cfg.ckpt_path)[0]
+        os.makedirs(path, exist_ok=True)
+        with open(f'{path}/seed={cfg.seed}.pkl', 'wb') as f:
+            pickle.dump(d, f, pickle.HIGHEST_PROTOCOL)
+    else:
+        trainer.fit(model=model, datamodule=datamodule)
+        if cfg.trainer.fast_dev_run:
+            trainer.predict(model=model, datamodule=datamodule)
 
     wandb.finish()
 
@@ -62,14 +68,14 @@ def main(cfg: DictConfig):
         return tuple(args)
     OmegaConf.register_new_resolver("as_tuple", resolve_tuple)
 
-    if cfg.trainer.fast_dev_run:
+    if cfg.trainer.fast_dev_run or cfg.ckpt_path:
         cfg.logger.mode = 'disabled'
 
     with open_dict(cfg):
         cfg.trainer.accelerator = 'cuda' if not cfg.trainer.fast_dev_run and torch.cuda.is_available() else 'cpu'
         cfg.trainer.devices = "auto" if torch.cuda.device_count() == 0 else torch.cuda.device_count()
 
-        cfg.datamodule.num_workers = os.cpu_count() if cfg.trainer.accelerator == 'cuda' else 0
+        cfg.datamodule.num_workers = 12 if cfg.trainer.accelerator == 'cuda' else 0
         cfg.datamodule.pin_memory = cfg.trainer.accelerator == 'cuda'
 
     launch(cfg)

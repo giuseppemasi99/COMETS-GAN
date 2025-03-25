@@ -9,7 +9,7 @@ from dataset.pipeline import Pipeline
 
 class MyDataModule(LightningDataModule):
     def __init__(
-        self, dataset_train: DictConfig, dataset_val: DictConfig,
+        self, dataset_train: DictConfig, dataset_val: DictConfig, dataset_predict: DictConfig,
         pipeline_price: DictConfig, pipeline_volume: DictConfig,
         batch_size: int, num_workers: int, pin_memory: bool
     ) -> None:
@@ -24,6 +24,7 @@ class MyDataModule(LightningDataModule):
 
         self.dataset_train: StockDataset = instantiate(dataset_train, pipeline_price=self.pipeline_price, pipeline_volume=self.pipeline_volume)
         self.dataset_val: StockDataset = instantiate(dataset_val, pipeline_price=self.pipeline_price, pipeline_volume=self.pipeline_volume)
+        self.dataset_predict: StockDataset = instantiate(dataset_predict, pipeline_price=self.pipeline_price, pipeline_volume=self.pipeline_volume)
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(
@@ -34,5 +35,11 @@ class MyDataModule(LightningDataModule):
     def val_dataloader(self) -> DataLoader:
         return DataLoader(
             self.dataset_val, batch_size=self.batch_size,
+            num_workers=self.num_workers, pin_memory=self.pin_memory
+        )
+
+    def predict_dataloader(self):
+        return DataLoader(
+            self.dataset_predict, batch_size=self.batch_size,
             num_workers=self.num_workers, pin_memory=self.pin_memory
         )

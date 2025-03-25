@@ -33,6 +33,7 @@ class ScalerPipeline(Pipeline):
     def __init__(self, scaler: Union[MinMaxScaler, StandardScaler], round: bool, log: bool) -> None:
         super(ScalerPipeline, self).__init__()
         self.scaler = scaler
+
         self.round = round
         self.log = log
 

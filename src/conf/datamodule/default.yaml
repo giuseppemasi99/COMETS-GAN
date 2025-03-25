@@ -1,12 +1,14 @@
 _target_: dataset.datamodule.MyDataModule
 dataset_train: ${dataset.train}
 dataset_val: ${dataset.val}
+dataset_predict: ${dataset.predict}
 batch_size: ${batch_size}
 
 pipeline_price:
   _target_: dataset.pipeline.LogReturnPipeline
   scaler:
-    _target_: sklearn.preprocessing.StandardScaler
+    _target_: sklearn.preprocessing.MinMaxScaler
+    feature_range: ${as_tuple:-1,1}
 
 pipeline_volume:
   _target_: dataset.pipeline.ScalerPipeline

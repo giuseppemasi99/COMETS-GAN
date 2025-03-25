@@ -6,3 +6,4 @@ settings:
   _target_: wandb.Settings
   code_dir: src
 tags: [ ]
+notes: MinMax(-1, 1) Price, MinMax(-1, 1)+Tanh Volume, timestep added to noise

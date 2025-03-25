@@ -2,6 +2,7 @@ _target_: model.pl_model.MyLightningModule
 
 encoder_length: ${encoder_length}
 decoder_length: ${decoder_length}
+generation_length: ${generation_length}
 
 generator:
   _target_: model.modules.generator.tcn.TCNGenerator

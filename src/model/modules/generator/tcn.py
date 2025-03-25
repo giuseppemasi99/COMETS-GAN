@@ -3,6 +3,9 @@ from typing import List
 import torch
 import torch.nn as nn
 
+from model.modules.non_linearity import non_linearity
+from model.modules.timestep_embedding import get_timestep_embedding
+
 
 class Chomp1d(nn.Module):
     def __init__(self, chomp_size: int) -> None:
@@ -74,7 +77,7 @@ class NoisyTemporalConvNet(nn.Module):
         num_levels = len(num_channels)
         for i in range(num_levels):
             dilation_size = 2**i
-            in_channels = num_inputs if i == 0 else num_channels[i - 1] + 2
+            in_channels = num_inputs if i == 0 else num_channels[i - 1] + 1
             out_channels = num_channels[i]
             layers += [
                 TemporalBlock(
@@ -100,35 +103,45 @@ class NoisyTemporalConvNet(nn.Module):
 class TCNGenerator(nn.Module):
     def __init__(
         self, encoder_length: int, decoder_length: int,
-        n_features: int, n_stocks: int, is_prices: bool, is_volumes: bool,
-        dropout: float
+        n_features: int, n_stocks: int,
+        dropout: float, t_embedding_dim: int = 128
     ) -> None:
         super(TCNGenerator, self).__init__()
         self.n_stocks = n_stocks
-        self.is_prices = is_prices
-        self.is_volumes = is_volumes
+        self.t_embedding_dim = t_embedding_dim
 
-        self.tcn = NoisyTemporalConvNet(n_features + 2, [32, 64, 128, 64, 32, 16, n_features], dropout=dropout)
+        # Timestep embedding
+        self.temb = nn.Module()
+        self.temb.dense = nn.ModuleList([nn.Linear(t_embedding_dim, t_embedding_dim*2), nn.Linear(t_embedding_dim*2, 1)])
+
+        self.tcn = NoisyTemporalConvNet(n_features + 1, [32, 64, 128, 64, 32, 16, n_features], dropout=dropout)
         self.linear_out = nn.Linear(encoder_length, decoder_length)
-        
-        if is_volumes:
-            self.tanh = nn.Tanh()
 
-    def forward(self, x: torch.Tensor, noise: torch.Tensor):
+        self.tanh = nn.Tanh()
+
+    def forward(
+        self, x: torch.Tensor, noise: torch.Tensor, 
+        t: torch.Tensor
+    ) -> torch.Tensor:
         # x.shape = [batch_size, n_features, encoder_length]
         # noise.shape = [batch_size, 1, encoder_length]
+        # t.shape = [batch_size, encoder_length]
+
+        t_emb = get_timestep_embedding(t, self.t_embedding_dim)
+        t_emb = self.temb.dense[0](t_emb)
+        t_emb = non_linearity(t_emb)
+        t_emb = self.temb.dense[1](t_emb).transpose(2, 1)
+        noise += t_emb
+
+        # noise = torch.cat((noise, t.unsqueeze(1)), dim=1)
 
         o = self.tcn(x, noise) 
-        ## o :  [batch_size, n_features, encoder_length]
         o = self.linear_out(o) 
-        ## o: [batch_size, n_features, decoder_lenght]
 
-        if self.is_volumes and self.is_prices:
-            o_price, o_volume = o[:, :self.n_stocks, :], o[:, self.n_stocks :, :]
-            o_volume = self.tanh(o_volume)
-            o = torch.concatenate((o_price, o_volume), dim=1)
-        elif self.is_volumes and not self.is_prices:
-            o = self.tanh(o)
+        o_price, o_volume = o[:, :self.n_stocks], o[:, self.n_stocks:]
+        o_volume = self.tanh(o_volume)
+        o = torch.concatenate((o_price, o_volume), dim=1)
 
         # o.shape = [batch_size, n_features, decoder_length]
         return o
+
