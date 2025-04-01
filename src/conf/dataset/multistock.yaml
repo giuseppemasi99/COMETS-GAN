@@ -24,7 +24,7 @@ val:
 
 predict:
   _target_: dataset.predict_dataset.StockDatasetPredict
-  path: data/midprice_volume__KO_PEP_NVDA_KSU__test.csv
+  path: data/midprice_volume__KO_PEP_NVDA_KSU__val.csv
   target_feature_price: ${dataset.target_feature_price}
   target_feature_volume: ${dataset.target_feature_volume}
   encoder_length: ${encoder_length}

@@ -1,6 +1,6 @@
 seed: 42
 
-ckpt_path: # storage/9l5lbw8e/checkpoints/epoch=176.ckpt
+ckpt_path: storage/v56u7ulz/checkpoints/epoch=284.ckpt
 
 encoder_length: 390
 decoder_length: 150

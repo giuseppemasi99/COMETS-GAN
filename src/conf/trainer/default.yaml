@@ -1,5 +1,5 @@
 _target_: lightning.pytorch.Trainer
-fast_dev_run: True
+fast_dev_run: False
 detect_anomaly: ${trainer.fast_dev_run}
 max_epochs: 300
 callbacks:

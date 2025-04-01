@@ -52,7 +52,7 @@ class MyLightningModule(LightningModule):
             discriminator, n_features=n_features,
         )
 
-        self.λ = 0
+        self.λ = 10
         self.n_critic = n_critic
 
         self.mse = nn.MSELoss(reduction='none')
