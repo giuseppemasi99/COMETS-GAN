@@ -1,17 +1,12 @@
-_target_: dataset.datamodule.MyDataModule
+_target_: data.datamodule.MyDataModule
 dataset_train: ${dataset.train}
 dataset_val: ${dataset.val}
-batch_size: ${batch_size}
-
-pipeline_price:
-  _target_: dataset.pipeline.LogReturnPipeline
+dataset_predict:
+  _target_: data.dataset_noise.DatasetNoise
+  n_samples: 512
+  seq_len: ${seq_len}
+pipeline:
+  _target_: data.preprocessing.LogReturnPipeline 
   scaler:
     _target_: sklearn.preprocessing.StandardScaler
-
-pipeline_volume:
-  _target_: dataset.pipeline.ScalerPipeline
-  scaler:
-    _target_: sklearn.preprocessing.MinMaxScaler
-    feature_range: ${as_tuple:-1,1}
-  round: True
-  log: True
+batch_size: ${batch_size}

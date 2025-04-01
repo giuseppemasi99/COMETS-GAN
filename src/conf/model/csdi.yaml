@@ -1,0 +1,7 @@
+_target_: model.csdi.csdi.CSDI
+channels: 64
+diffusion_timesteps: ${pl_model.diffusion.diffusion_timesteps}
+diffusion_embedding_dim: 128
+nheads: 8
+is_linear: False
+layers: 4

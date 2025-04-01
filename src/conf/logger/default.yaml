@@ -1,5 +1,5 @@
 _target_: lightning.pytorch.loggers.WandbLogger
-project: cometsgan
+project: cometsgan-journal
 save_code: True
 mode: online
 settings:

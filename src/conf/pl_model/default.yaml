@@ -1,0 +1,23 @@
+_target_: model.pl_model.MyPLModel
+n_samples_evaluation: 64
+model: ${model}
+batch_size: ${batch_size}
+lr: ${lr}
+path_storage: ${path_storage}
+seq_len: ${seq_len}
+
+diffusion:
+  _target_: model.diffusion.Diffusion
+  diffusion_timesteps: 50
+  beta_scheduler_type: Quadratic
+  device: ${trainer.accelerator}
+
+critic_ckpt_path: 'storage/gan/checkpoint_critic_epoch=121.ckpt'
+guidance_scale: 250
+critic:
+  _target_: model.gan.critic.CNNCritic
+  encoder_length: 390
+  decoder_length: 150
+  n_features: ${pl_model.n_features}
+  dropout: .2
+  hidden_dim: 256

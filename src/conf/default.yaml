@@ -1,13 +1,17 @@
 seed: 42
 
-encoder_length: 390
-decoder_length: 150
-batch_size: 128
+seq_len: 150
+
+batch_size: 16
+lr: .001
+
+ckpt_path: # storage/vb7m8jvt/checkpoints/epoch=05-val_f1=0.399.ckpt
 
 defaults:
-  - dataset: multistock
+  - model: csdi
+  - dataset: stocks
+  - pl_model: default
   - datamodule: default
-  - model: default
   - logger: default
   - trainer: default
   - hydra: default
