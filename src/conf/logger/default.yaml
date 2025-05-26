@@ -1,9 +1,9 @@
 _target_: lightning.pytorch.loggers.WandbLogger
-project: cometsgan
+project: CoMeTS-GAN
 save_code: True
-mode: online
+mode: disabled
 settings:
   _target_: wandb.Settings
   code_dir: src
 tags: [ ]
-notes: MinMax(-1, 1) Price, MinMax(-1, 1)+Tanh Volume, timestep added to noise
+notes:
