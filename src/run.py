@@ -8,7 +8,7 @@ from lightning.pytorch import Trainer, seed_everything
 from lightning.pytorch.loggers import WandbLogger
 from omegaconf import DictConfig, open_dict
 from utils.save import save
-from data.datamodule import MyDataModule
+from dataset.datamodule import MyDataModule
 from model.pl_model import MyPLModel
 from utils.extract_params import extract_params
 

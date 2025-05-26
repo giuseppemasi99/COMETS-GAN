@@ -7,7 +7,7 @@ import torch.nn as nn
 from lightning import LightningModule
 from torch import Tensor
 
-from data.preprocessing import Pipeline
+from dataset.preprocessing import Pipeline
 from model.csdi.csdi import CSDI
 from model.diffusion import Diffusion
 from model.gan.critic import CNNCritic

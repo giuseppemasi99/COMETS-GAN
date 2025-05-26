@@ -3,9 +3,9 @@ from lightning import LightningDataModule
 from omegaconf.dictconfig import DictConfig
 from torch.utils.data import DataLoader
 
-from data.dataset_noise import DatasetNoise
-from data.dataset_stocks import DatasetStocks
-from data.preprocessing import Pipeline
+from dataset.dataset_noise import DatasetNoise
+from dataset.dataset_stocks import DatasetStocks
+from dataset.preprocessing import Pipeline
 
 
 class MyDataModule(LightningDataModule):

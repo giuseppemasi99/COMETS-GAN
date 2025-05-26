@@ -1,7 +1,7 @@
 _target_: lightning.pytorch.loggers.WandbLogger
-project: cometsgan-journal
+project: CoMeTS-GAN-critic-as-a-guide
 save_code: True
-mode: online
+mode: disabled
 settings:
   _target_: wandb.Settings
   code_dir: src

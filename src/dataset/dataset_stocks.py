@@ -5,7 +5,7 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
-from data.preprocessing import Pipeline
+from dataset.preprocessing import Pipeline
 
 
 class DatasetStocks(Dataset):
