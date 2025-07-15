@@ -2,13 +2,13 @@ name: stocks
 feature_names: [ mid_price_KO, mid_price_PEP, mid_price_NVDA, mid_price_KSU ]
 
 train:
-  _target_: data.dataset_stocks.DatasetStocks
+  _target_: dataset.dataset_stocks.DatasetStocks
   file_path_data: data/stocks/midprice_volume__KO_PEP_NVDA_KSU__train.csv
   feature_names: ${dataset.feature_names}
   seq_len: ${seq_len}
 
 val:
-  _target_: data.dataset_stocks.DatasetStocks
+  _target_: dataset.dataset_stocks.DatasetStocks
   file_path_data: data/stocks/midprice_volume__KO_PEP_NVDA_KSU__val.csv
   feature_names: ${dataset.feature_names}
   seq_len: ${seq_len}

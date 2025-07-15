@@ -2,10 +2,10 @@ seed: 42
 
 seq_len: 150
 
-batch_size: 16
+batch_size: 32
 lr: .001
 
-ckpt_path: # storage/vb7m8jvt/checkpoints/epoch=05-val_f1=0.399.ckpt
+ckpt_path: # storage/vb7m8jvt/checkpoints/epoch=04-val=0.403.ckpt
 
 defaults:
   - model: csdi

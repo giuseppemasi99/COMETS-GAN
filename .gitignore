@@ -4,3 +4,4 @@ data
 storage
 wandb
 *pyc
+.env

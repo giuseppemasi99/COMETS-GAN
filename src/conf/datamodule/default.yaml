@@ -1,12 +1,12 @@
-_target_: data.datamodule.MyDataModule
+_target_: dataset.datamodule.MyDataModule
 dataset_train: ${dataset.train}
 dataset_val: ${dataset.val}
 dataset_predict:
-  _target_: data.dataset_noise.DatasetNoise
+  _target_: dataset.dataset_noise.DatasetNoise
   n_samples: 512
   seq_len: ${seq_len}
 pipeline:
-  _target_: data.preprocessing.LogReturnPipeline 
+  _target_: dataset.preprocessing.LogReturnPipeline 
   scaler:
     _target_: sklearn.preprocessing.StandardScaler
 batch_size: ${batch_size}
